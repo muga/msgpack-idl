@@ -45,6 +45,7 @@ begin
 	paths = ARGV
 
 	lang = "java" # TODO
+
 rescue
 	usage $!.to_s
 end
@@ -67,10 +68,12 @@ paths.each {|path|
 	parser.parse_file(path)
 }
 ast = parser.ast
+pp ast
 
 ev = MessagePack::IDL::Evaluator.new
 ev.evaluate(ast)
 ir = ev.evaluate_spec(lang)
+pp ir
 
 gen = MessagePack::IDL::Generator.new
 gen.generate(lang, ir, "./gen-#{lang}")

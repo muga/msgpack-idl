@@ -22,15 +22,15 @@ module IDL
 class Evaluator
 	include ProcessorModule
 
-	class TypeParameter
-	end
-
 	class Template
-		def initialize(name, params, nullable=false)
-			@name = name
-			@params = params
+		def initialize(generic_type, nullable=false)
+			@name = generic_type.name
+			@params = generic_type.type_params
+			@generic_type = generic_type
 			@nullable = nullable
 		end
+
+		attr_reader :generic_type, :nullable
 
 		def match_all(name, array)
 			if @name != name
@@ -40,10 +40,10 @@ class Evaluator
 				return nil
 			end
 			resolved_params = @params.zip(array).map {|a,b|
-				if b.class == TypeParameter
+				if b.class == IR::TypeParameterSymbol
 					return nil
 				end
-				if a.class != TypeParameter && a != b
+				if a.class != IR::TypeParameterSymbol && a != b
 					return nil
 				end
 				b
@@ -57,6 +57,7 @@ class Evaluator
 
 		@types = {}  # name:String => AST::Type
 		@generic_types = []  # Template
+		@void_type = IR::PrimitiveType.new('void')
 
 		@global_namespace = ""   # Namespace
 		@lang_namespace = {}     # lang:String => scope:Namespace
@@ -64,6 +65,7 @@ class Evaluator
 		init_built_in
 
 		@ir_types = []
+		@ir_services = []
 	end
 
 	def evaluate(ast)
@@ -81,8 +83,8 @@ class Evaluator
 			check_name(e.name, e)
 			if e.super_class
 				super_message = resolve_type(e.super_class)
-				if !super_message.is_a?(IR::Message)
-					raise InvalidNameError, "`#{e.super_class}' is not a #{IR::Message} but a #{super_message.class}"
+				if !super_message.is_a?(IR::Exception)
+					raise InvalidNameError, "`#{e.super_class}' is not a #{IR::Exception} but a #{super_message.class}"
 				end
 			end
 			new_fields = resolve_fields(e.fields, super_message)
@@ -92,7 +94,7 @@ class Evaluator
 			check_name(e.name, e)
 			if e.super_class
 				super_message = resolve_type(e.super_class)
-				if !super_message.is_a?(IR::Exception)
+				if !super_message.is_a?(IR::Message)
 					raise InvalidNameError, "`#{e.super_class}' is not a #{IR::Message} but a #{super_message.class}"
 				end
 			end
@@ -100,6 +102,16 @@ class Evaluator
 			add_message(e.name, super_message, new_fields)
 
 		when AST::Enum
+			check_name(e.name, e)
+			fields = resolve_enum_fields(e.fields)
+			add_enum(e.name, fields)
+
+		when AST::Service
+			check_name(e.name, e)
+			versions = resolve_versions(e.name, e.versions)
+			add_service(e.name, versions)
+
+		when AST::Application
 			check_name(e.name, e)
 
 		else
@@ -111,7 +123,8 @@ class Evaluator
 		lang = lang.to_s
 		ns = spec_namespace(lang)
 		types = spec_types(lang)
-		IR::Spec.new(ns, types)
+		services = spec_services(lang)
+		IR::Spec.new(ns, types, services)
 	end
 
 	private
@@ -125,6 +138,10 @@ class Evaluator
 
 	def spec_types(lang)
 		@ir_types
+	end
+
+	def spec_services(lang)
+		@ir_services
 	end
 
 	def check_name(name, e)
@@ -158,7 +175,8 @@ class Evaluator
 		unless resolved_types
 			raise NameNotFoundError, "generic type not matched: #{e.name}"
 		end
-		IR::ParameterizedType.new(e.name, resolved_types)#, template.nullable?||e.nullable?)
+		IR::ParameterizedType.new(resolved_types, template.generic_type)
+		#TODO template.nullable?||e.nullable?
 	end
 
 	def resolve_type(e)
@@ -172,14 +190,24 @@ class Evaluator
 	def resolve_fields(fields, super_message)
 		used_ids = []
 		used_names = {}
-		super_max_id = super_message ? super_message.max_id : 0
+		super_max_id = 0
+
+		if super_message
+			super_max_id = super_message.max_id
+			super_message.all_fields.each {|f|
+				used_names[f] = true
+			}
+		end
 
 		new_fields = fields.map {|e|
 			if e.id == 0
 				raise InvalidNameError, "field id 0 is invalid"
 			end
-			if used_ids[e.id]
-				raise DuplicatedNameError, "duplicated field id #{e.id}: #{e.name}"
+			if e.id < 0
+				raise InvalidNameError, "field id < 0 is invalid"
+			end
+			if n = used_ids[e.id]
+				raise DuplicatedNameError, "duplicated field id #{e.id}: #{n}, #{e.name}"
 			end
 			if used_names[e.name]
 				raise DuplicatedNameError, "duplicated field name: #{e.name}"
@@ -188,8 +216,8 @@ class Evaluator
 				raise InheritanceError, "field id #{e.is} is smaller than max field id of the super class"
 			end
 
-			used_ids[e.id] = true
-			used_names[e.name] = true
+			used_ids[e.id] = e.name
+			used_names[e.name] = e.name
 
 			type = resolve_type(e.type)
 			required = e.modifier == AST::FIELD_OPTIONAL ? false : true
@@ -201,6 +229,109 @@ class Evaluator
 
 		return new_fields
 	end
+
+	def resolve_enum_fields(fields)
+		used_ids = []
+		used_names = {}
+
+		fields = fields.map {|e|
+			if e.id < 0
+				raise InvalidNameError, "enum id < 0 is invalid"
+			end
+			if n = used_ids[e.id]
+				raise DuplicatedNameError, "duplicated enum id #{e.id}: #{n}, #{e.name}"
+			end
+			if used_names[e.name]
+				raise DuplicatedNameError, "duplicated field name: #{e.name}"
+			end
+
+			used_ids[e.id] = e.name
+			used_names[e.name] = e.name
+
+			IR::EnumField.new(e.id, e.name)
+		}.sort_by {|f|
+			f.id
+		}
+
+		return fields
+	end
+
+	def resolve_versions(service_name, versions)
+		used = []
+
+		versions = versions.map {|e|
+			if used[e.version]
+				raise DuplicatedNameError, "duplicated version #{e.version}"
+			end
+
+			used[e.version] = true
+
+			funcs = resolve_funcs(e.funcs)
+			IR::ServiceVersion.new(funcs, e.version)
+		}.sort_by {|v|
+			v.version
+		}
+
+		return versions
+	end
+
+	def resolve_funcs(funcs)
+		used_names = {}
+
+		funcs = funcs.map {|e|
+			if used_names[e.name]
+				raise DuplicatedNameError, "duplicated function name: #{e.name}"
+			end
+
+			used_names[e.name] = true
+
+			args = resolve_args(e.args)
+			if e.return_type.name == "void"
+				return_type = @void_type
+			else
+				return_type = resolve_type(e.return_type)
+			end
+
+			IR::Function.new(e.name, return_type, args)
+		}.sort_by {|f|
+			f.name
+		}
+
+		return funcs
+	end
+
+	def resolve_args(args)
+		used_ids = []
+		used_names = {}
+
+		args = args.map {|e|
+			if e.id == 0
+				raise InvalidNameError, "argument id 0 is invalid"
+			end
+			if e.id < 0
+				raise InvalidNameError, "argument id < 0 is invalid"
+			end
+			if n = used_ids[e.id]
+				raise DuplicatedNameError, "duplicated argument id #{e.id}: #{n}, #{e.name}"
+			end
+			if used_names[e.name]
+				raise DuplicatedNameError, "duplicated argument name: #{e.name}"
+			end
+
+			used_ids[e.id] = e.name
+			used_names[e.name] = e.name
+
+			type = resolve_type(e.type)
+			required = e.modifier == AST::FIELD_OPTIONAL ? false : true
+
+			IR::Argument.new(e.id, type, e.name, required)
+		}.sort_by {|a|
+			a.id
+		}
+
+		return args
+	end
+
 
 	def add_namespace(e)
 		if e.lang
@@ -224,12 +355,34 @@ class Evaluator
 		e
 	end
 
+	def add_enum(name, fields)
+		e = IR::Enum.new(name, fields)
+		@types[name] = e
+		@ir_types << e
+		e
+	end
+
+	def add_service(name, versions)
+		s = IR::Service.new(name, versions)
+		@ir_services << s
+		s
+	end
+
+
 	def init_built_in
 		%w[byte short int long ubyte ushort uint ulong float double bool raw string].each {|name|
+			check_name(name, nil)
 			@types[name] = IR::PrimitiveType.new(name)
 		}
-		@generic_types << Template.new('list', [TypeParameter.new])
-		@generic_types << Template.new('map', [TypeParameter.new, TypeParameter.new])
+		@generic_types << Template.new(
+				IR::PrimitiveGenericType.new('list', [
+						IR::TypeParameterSymbol.new('E')]))
+		check_name('list', nil)
+		@generic_types << Template.new(
+				IR::PrimitiveGenericType.new('map', [
+						IR::TypeParameterSymbol.new('K'),
+						IR::TypeParameterSymbol.new('V')]))
+		check_name('map', nil)
 	end
 end
 

@@ -81,6 +81,54 @@ module AST
 			@id = id
 			@name = name
 		end
+		attr_reader :id, :name
+	end
+
+
+	class Service < Element
+		def initialize(name, versions)
+			@name = name
+			@versions = versions
+		end
+		attr_reader :name, :versions
+	end
+
+	class ServiceVersion < Element
+		def initialize(version, funcs)
+			@version = version
+			@funcs = funcs
+		end
+		attr_reader :version, :funcs
+	end
+
+	class Func < Element
+		def initialize(name, return_type, args, exceptions)
+			@name = name
+			@return_type = return_type
+			@args = args
+			@exceptions = exceptions
+		end
+		attr_reader :name, :return_type, :args, :exceptions
+	end
+
+
+	class Application < Element
+		def initialize(name, scopes)
+			@name = name
+			@scopes = scopes
+		end
+
+		attr_reader :name
+		attr_reader :scopes
+	end
+
+	class Scope < Element
+		def initialize(type, name, default)
+			@type = type
+			@name = name
+			@default = default
+		end
+		attr_reader :type, :name, :default
 	end
 
 
@@ -107,7 +155,6 @@ module AST
 			@nullable
 		end
 	end
-
 
 	FIELD_OPTIONAL = :optional
 	FIELD_REQUIRED = :required

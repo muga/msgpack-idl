@@ -43,7 +43,6 @@ class JavaGenerator < GeneratorModule
 		@datadir = File.join(File.dirname(__FILE__), 'java')
 
 		@dir = File.join(@outdir, @ir.namespace)
-		FileUtils.mkdir_p(@dir)
 
 		if @ir.namespace.empty?
 			@package = ""
@@ -55,26 +54,68 @@ class JavaGenerator < GeneratorModule
 	end
 
 	def gen_messages
-		render_path = File.join(@datadir, "message.java")
-		render = @engine.get_template(render_path)
+		render = get_render('message.java')
 
 		@ir.messages.each {|t|
 			@message = t
-			code = render.render(self)
-			path = File.join(@dir, t.name+".java")
-			File.open(path, "w") {|f|
-				f.write(code)
-			}
+			render_write(render, t.name)
 		}
+		@message = nil
 	end
 
 	def gen_servers
+		render = get_render('server.java')
+
+		@ir.services.each {|s|
+			@service = s
+			s.versions.each {|v|
+				@version = v.version
+				@functions = v.functions
+				@name = "#{s.name}_#{v.version}"
+				render_write(render, 'server', @name)
+			}
+		}
+		@service = nil
+		@version = nil
+		@functions = nil
+		@name = nil
 	end
 
 	def gen_clients
+		render = get_render('client.java')
+
+		@ir.services.each {|s|
+			@service = s
+			s.versions.each {|v|
+				@version = v.version
+				@functions = v.functions
+				@name = "#{s.name}_#{v.version}"
+				render_write(render, 'client', @name)
+			}
+		}
+		@service = nil
+		@version = nil
+		@functions = nil
+		@name = nil
+	end
+
+	def get_render(*fnames)
+		path = File.join(@datadir, *fnames)
+		@engine.get_template(path)
+	end
+
+	def render_write(render, *fnames)
+		code = render.render(self)
+		path = File.join(@dir, *fnames)
+		FileUtils.mkdir_p(File.dirname(path))
+		path << '.java'
+		File.open(path, "w") {|f|
+			f.write(code)
+		}
 	end
 
 	PRIMITIVE_TYPEMAP = {
+		'void'   => 'void',
 		'byte'   => 'byte',
 		'short'  => 'short',
 		'int'    => 'int',
@@ -85,24 +126,21 @@ class JavaGenerator < GeneratorModule
 		'ulong'  => 'BigInteger',
 		'float'  => 'float',
 		'double' => 'double',
-		'bool'   => 'bool',
+		'bool'   => 'boolean',
 		'raw'    => 'ByteBuffer',
 		'string' => 'String',
+		'list'   => 'ArrayList',
+		'map'    => 'HashMap',
 	}
 
 	def format_type(t)
-		case t
-		when IR::PrimitiveType
-			PRIMITIVE_TYPEMAP[t.name]
-		when IR::ParameterizedType
-			# TODO list, map
-			t.name + '<' +
-				t.type_params.map {|tp|
-					format_type(tp)
-				}.join(', ') +
+		name = PRIMITIVE_TYPEMAP[t.name] || t.name
+		if t.is_a?(IR::ParameterizedType)
+			name + '<' +
+				t.type_params.map {|tp| format_type(tp) }.join(', ') +
 			'>'
 		else
-			t.name
+			name
 		end
 	end
 end

@@ -132,6 +132,55 @@ class ParsletTransform < Parslet::Transform
 	}
 
 
+	rule(:return_type => simple(:rt),
+			 :func_name => simple(:n),
+			 :func_args => simple(:a),
+			 :func_throws => simple(:ex)) {
+		AST::Func.new(n, rt, a, ex)
+	}
+
+	rule(:service_description => sequence(:s)) {
+		current = AST::ServiceVersion.new(0, [])
+		versions = [current]
+		s.each {|l|
+			case l
+			when Integer
+				v = versions.find {|v| v.version == l }
+				if v
+					current = v
+				else
+					current = AST::ServiceVersion.new(l, [])
+					versions << current
+				end
+			else
+				current.funcs << l
+			end
+		}
+		versions
+	}
+
+	rule(:service_name => simple(:n),
+			 :service_versions => sequence(:vs)) {
+		AST::Service.new(n, vs)
+	}
+
+
+	rule(:scope_type => simple(:t),
+			 :scope_name => simple(:n),
+			 :scope_default => simple(:d)) {
+		if d
+			AST::Scope.new(t, n, true)
+		else
+			AST::Scope.new(t, n, false)
+		end
+	}
+
+	rule(:application_name => simple(:n),
+			 :application_body => sequence(:b)) {
+		AST::Application.new(n, b)
+	}
+
+
 	rule(:namespace_name => simple(:n)) {
 		AST::Namespace.new(n, nil)
 	}

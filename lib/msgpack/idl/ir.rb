@@ -21,13 +21,15 @@ module IDL
 
 module IR
 	class Spec
-		def initialize(namespace, messages)
+		def initialize(namespace, messages, services)
 			@namespace = namespace
 			@messages = messages
+			@services = services
 		end
 
 		attr_reader :namespace
 		attr_reader :messages
+		attr_reader :services
 		#attr_reader :servers
 		#attr_reader :clients
 	end
@@ -57,11 +59,32 @@ module IR
 	end
 
 	class ParameterizedType < Type
+		def initialize(type_params, generic_type)
+			@generic_type = generic_type
+			@type_params = type_params
+		end
+		attr_reader :type_params, :generic_type
+		def name
+			@generic_type.name
+		end
+	end
+
+	class TypeParameterSymbol
+		def initialize(name)
+			@name = name
+		end
+		attr_reader :name
+	end
+
+	class GenericType
 		def initialize(name, type_params)
 			@name = name
 			@type_params = type_params
 		end
 		attr_reader :name, :type_params
+	end
+
+	class PrimitiveGenericType < GenericType
 	end
 
 	#class NullableType < ParameterizedType
@@ -92,11 +115,6 @@ module IR
 	class Exception < Message
 	end
 
-	class Fields < Array
-		def initialize(fields)
-		end
-	end
-
 	class Field
 		def initialize(id, type, name, is_required)
 			@id = id
@@ -114,6 +132,56 @@ module IR
 		def optional?
 			!@is_required
 		end
+	end
+
+	class Enum < Type
+		def initialize(name, fields)
+			@name = name
+			@fields = fields
+		end
+		attr_reader :name, :fields
+	end
+
+	class EnumField
+		def initialize(id, name)
+			@id = id
+			@name = name
+		end
+		attr_reader :id, :name
+	end
+
+	class Service
+		def initialize(name, versions)
+			@name = name
+			@versions = versions
+		end
+		attr_reader :name, :versions
+	end
+
+	class ServiceVersion
+		def initialize(funcs, version)
+			@functions = funcs
+			@version = version
+		end
+		attr_reader :functions, :version
+	end
+
+	class Function
+		def initialize(name, return_type, args)
+			@name = name
+			@return_type = return_type
+			@args = args
+			@max_id = @args.map {|a| a.id }.max
+		end
+		attr_reader :name, :return_type, :args
+		attr_reader :max_id
+
+		def super_class; nil; end
+		alias new_fields args
+		alias all_fields args
+	end
+
+	class Argument < Field
 	end
 end
 

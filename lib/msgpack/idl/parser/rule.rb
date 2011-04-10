@@ -66,12 +66,12 @@ class ParsletParser < Parslet::Parser
 		namespace |
 		message |
 		enum |
-		exception
+		exception |
+		service |
+		application
 		#const |
 		#typedef |
 		#typespec |
-		#service |
-		#application
 	}
 
 
@@ -97,7 +97,7 @@ class ParsletParser < Parslet::Parser
 			class_name.as(:exception_name) >>
 			lt_extend_class.maybe.as(:super_class) >>
 		k_lwing >>
-			field.repeat.as(:exception_body) >>  # TODO nested exception?
+			field.repeat.as(:exception_body) >>
 		k_rwing
 	}
 
@@ -141,6 +141,61 @@ class ParsletParser < Parslet::Parser
 
 	rule(:enum_field_element) {
 		field_id.as(:enum_field_id) >> field_name.as(:enum_field_name)
+	}
+
+
+	rule(:service) {
+		k_service >>
+			service_name.as(:service_name) >>
+		k_lwing >>
+			service_description.as(:service_versions) >>
+		k_rwing
+	}
+
+	rule(:service_description) {
+		(func | version_label).repeat.as(:service_description)
+	}
+
+	rule(:version_label) {
+		field_id
+	}
+
+	rule(:func) {
+		return_type.as(:return_type) >>
+		func_name.as(:func_name) >>
+		k_lparen >>
+			func_args.as(:func_args) >>
+		k_rparen >>
+		throws_classes.maybe.as(:func_throws) >>
+		eol
+	}
+
+	sequence :func_args_seq, :k_comma, :field_element
+
+	rule(:func_args) {
+		func_args_seq
+	}
+
+	sequence :throws_classes_seq, :k_comma, :generic_type, 1
+
+	rule(:throws_classes) {
+		k_throws >> throws_classes_seq
+	}
+
+
+	rule(:application) {
+		k_application >>
+			service_name.as(:application_name) >>
+		k_lwing >>
+			scope.repeat.as(:application_body) >>
+		k_rwing
+	}
+
+	rule(:scope) {
+		generic_type.as(:scope_type) >>
+		field_name.as(:scope_name) >>
+		k_default.maybe.as(:scope_default) >>
+		eol
 	}
 
 
@@ -269,6 +324,14 @@ class ParsletParser < Parslet::Parser
 
 	rule(:field_name) {
 		name
+	}
+
+	rule(:service_name) {
+		class_name
+	}
+
+	rule(:func_name) {
+		field_name
 	}
 
 	rule(:name) {
