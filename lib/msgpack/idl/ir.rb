@@ -105,11 +105,16 @@ module IR
 			else
 				@all_fields = new_fields
 			end
-			@max_id = @all_fields.map {|f| f.id }.max
+			@max_id = @all_fields.map {|f| f.id }.max || 0
+			@max_required_id = @all_fields.select {|f| f.required? }.map {|f| f.id }.max || 0
 		end
 
 		attr_reader :name, :super_class, :new_fields
-		attr_reader :all_fields, :max_id
+		attr_reader :all_fields, :max_id, :max_required_id
+
+		def [](id)
+			@all_fields.find {|f| f.id == id }
+		end
 	end
 
 	class Exception < Message
@@ -171,7 +176,8 @@ module IR
 			@name = name
 			@return_type = return_type
 			@args = args
-			@max_id = @args.map {|a| a.id }.max
+			@max_id = @args.map {|a| a.id }.max || 0
+			@max_id = @args.select {|a| a.required? }.map {|a| a.id }.max || 0
 		end
 		attr_reader :name, :return_type, :args
 		attr_reader :max_id

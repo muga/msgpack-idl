@@ -71,7 +71,7 @@ class ParsletTransform < Parslet::Transform
 			 :field_modifier => simple(:m),
 			 :field_type => simple(:t),
 			 :field_name => simple(:n)) {
-		m ||= AST::FIELD_REQUIRED
+		m = m() ? m() : AST::FIELD_REQUIRED
 		AST::Field.new(i, t, m, n)
 	}
 

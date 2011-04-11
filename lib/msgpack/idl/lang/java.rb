@@ -129,8 +129,8 @@ class JavaGenerator < GeneratorModule
 		'bool'   => 'boolean',
 		'raw'    => 'ByteBuffer',
 		'string' => 'String',
-		'list'   => 'ArrayList',
-		'map'    => 'HashMap',
+		'list'   => 'List',
+		'map'    => 'Map',
 	}
 
 	def format_type(t)
@@ -142,6 +142,52 @@ class JavaGenerator < GeneratorModule
 		else
 			name
 		end
+	end
+
+	PRIMITIVE_UNPACK = {
+		'byte'   => 'unpackByte()',
+		'short'  => 'unpackShort()',
+		'int'    => 'unpackInt()',
+		'long'   => 'unpackLong()',
+		'ubyte'  => 'unpackShort()',
+		'ushort' => 'unpackInt()',
+		'uint'   => 'unpackLong()',
+		'ulong'  => 'unpackBigInteger()',
+		'float'  => 'unpackFloat()',
+		'double' => 'unpackDouble()',
+		'bool'   => 'unpackBoolean()',
+		'raw'    => 'ByteBuffer.wrap(unpackByteArray())',
+		'string' => 'unpackString()',
+		'list'   => 'unpackList()',
+		'map'    => 'unpackMap()',
+	}
+
+	def format_unpack(t)
+		# TODO type erasure
+		PRIMITIVE_UNPACK[t.name] || "unpack(#{t.name}.class)"
+	end
+
+	PRIMITIVE_CONVERT = {
+		'byte'   => 'asByte()',
+		'short'  => 'asShort()',
+		'int'    => 'asInt()',
+		'long'   => 'asLong()',
+		'ubyte'  => 'asShort()',
+		'ushort' => 'asInt()',
+		'uint'   => 'asLong()',
+		'ulong'  => 'asBigInteger()',
+		'float'  => 'asFloat()',
+		'double' => 'asDouble()',
+		'bool'   => 'asBoolean()',
+		'raw'    => 'ByteBuffer.wrap(asByteArray())',
+		'string' => 'asString()',
+		'list'   => 'asList()',
+		'map'    => 'asMap()',
+	}
+
+	def format_convert(t)
+		# TODO type erasure
+		PRIMITIVE_CONVERT[t.name] || "convert(#{t.name}.class)"
 	end
 end
 
