@@ -46,6 +46,9 @@ end
 class DuplicatedNameError < NameError
 end
 
+class TypeError < SemanticsError
+end
+
 class InheritanceError < IDLError
 end
 

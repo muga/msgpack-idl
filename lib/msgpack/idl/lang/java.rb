@@ -25,8 +25,6 @@ require 'tenjin'
 class JavaGenerator < GeneratorModule
 	Generator.register('java', self)
 
-	include Tenjin::ContextHelper
-
 	def initialize(ir, outdir)
 		@ir = ir
 		@outdir = outdir
@@ -41,153 +39,291 @@ class JavaGenerator < GeneratorModule
 
 	def gen_init
 		@datadir = File.join(File.dirname(__FILE__), 'java')
-
-		@dir = File.join(@outdir, @ir.namespace)
-
-		if @ir.namespace.empty?
-			@package = ""
-		else
-			@package = "package #{@ir.namespace.join('.')};"
-		end
+		@pkgoutdir = File.join(@outdir, @ir.namespace)
 
 		@engine = Tenjin::Engine.new(:cache => false)
 	end
 
 	def gen_messages
-		render = get_render('message.java')
+		ctx = Context.new(:package, :message, :name)
+		ctx.package = @ir.namespace
 
 		@ir.messages.each {|t|
-			@message = t
-			render_write(render, t.name)
+			ctx.message = t
+			ctx.name = t.name
+			render('message.java', ctx, "#{ctx.name}")
 		}
-		@message = nil
 	end
 
 	def gen_servers
-		render = get_render('server.java')
+		ctx = Context.new(:package, :service, :version, :functions, :name)
+		ctx.package = @ir.namespace + ['server']
 
 		@ir.services.each {|s|
-			@service = s
+			ctx.service = s
 			s.versions.each {|v|
-				@version = v.version
-				@functions = v.functions
-				@name = "#{s.name}_#{v.version}"
-				render_write(render, 'server', @name)
+				ctx.version  = v.version
+				ctx.functions = v.functions
+				ctx.name = "#{s.name}_#{v.version}"
+				render('server.java', ctx, "server/#{ctx.name}")
 			}
 		}
-		@service = nil
-		@version = nil
-		@functions = nil
-		@name = nil
 	end
 
 	def gen_clients
-		render = get_render('client.java')
+		ctx = Context.new(:package, :service, :version, :functions, :name)
+		ctx.package = @ir.namespace + ['client']
 
 		@ir.services.each {|s|
-			@service = s
+			ctx.service = s
 			s.versions.each {|v|
-				@version = v.version
-				@functions = v.functions
-				@name = "#{s.name}_#{v.version}"
-				render_write(render, 'client', @name)
+				ctx.version = v.version
+				ctx.functions = v.functions
+				ctx.name = "#{s.name}_#{v.version}"
+				render('client.java', ctx, "client/#{ctx.name}")
 			}
 		}
-		@service = nil
-		@version = nil
-		@functions = nil
-		@name = nil
 	end
 
-	def get_render(*fnames)
-		path = File.join(@datadir, *fnames)
-		@engine.get_template(path)
-	end
-
-	def render_write(render, *fnames)
-		code = render.render(self)
-		path = File.join(@dir, *fnames)
+	private
+	def render(template_fname, ctx, fname)
+		template_path = File.join(@datadir, template_fname)
+		code = @engine.render(template_path, ctx)
+		path = File.join(@pkgoutdir, fname) + '.java'
 		FileUtils.mkdir_p(File.dirname(path))
-		path << '.java'
 		File.open(path, "w") {|f|
 			f.write(code)
 		}
 	end
 
-	PRIMITIVE_TYPEMAP = {
-		'void'   => 'void',
-		'byte'   => 'byte',
-		'short'  => 'short',
-		'int'    => 'int',
-		'long'   => 'long',
-		'ubyte'  => 'short',
-		'ushort' => 'int',
-		'uint'   => 'long',
-		'ulong'  => 'BigInteger',
-		'float'  => 'float',
-		'double' => 'double',
-		'bool'   => 'boolean',
-		'raw'    => 'ByteBuffer',
-		'string' => 'String',
-		'list'   => 'List',
-		'map'    => 'Map',
-	}
 
-	def format_type(t)
-		name = PRIMITIVE_TYPEMAP[t.name] || t.name
-		if t.is_a?(IR::ParameterizedType)
-			name + '<' +
-				t.type_params.map {|tp| format_type(tp) }.join(', ') +
-			'>'
-		else
-			name
+	class Context
+		include Tenjin::ContextHelper
+
+		def initialize(*member)
+			(class << self; self; end).module_eval {
+				member.each {|m|
+					define_method("#{m}") {
+						instance_variable_get("@#{m}")
+					}
+					define_method("#{m}=") {|v|
+						instance_variable_set("@#{m}", v)
+					}
+				}
+			}
 		end
-	end
 
-	PRIMITIVE_UNPACK = {
-		'byte'   => 'unpackByte()',
-		'short'  => 'unpackShort()',
-		'int'    => 'unpackInt()',
-		'long'   => 'unpackLong()',
-		'ubyte'  => 'unpackShort()',
-		'ushort' => 'unpackInt()',
-		'uint'   => 'unpackLong()',
-		'ulong'  => 'unpackBigInteger()',
-		'float'  => 'unpackFloat()',
-		'double' => 'unpackDouble()',
-		'bool'   => 'unpackBoolean()',
-		'raw'    => 'ByteBuffer.wrap(unpackByteArray())',
-		'string' => 'unpackString()',
-		'list'   => 'unpackList()',
-		'map'    => 'unpackMap()',
-	}
+		def format_package
+			if package.empty?
+				""
+			else
+				"package #{package.join('.')};"
+			end
+		end
 
-	def format_unpack(t)
-		# TODO type erasure
-		PRIMITIVE_UNPACK[t.name] || "unpack(#{t.name}.class)"
-	end
+		PRIMITIVE_TYPEMAP = {
+			'void'   => 'void',
+			'byte'   => 'byte',
+			'short'  => 'short',
+			'int'    => 'int',
+			'long'   => 'long',
+			'ubyte'  => 'short',
+			'ushort' => 'int',
+			'uint'   => 'long',
+			'ulong'  => 'BigInteger',
+			'float'  => 'float',
+			'double' => 'double',
+			'bool'   => 'boolean',
+			'raw'    => 'byte[]',
+			'string' => 'String',
+			'list'   => 'List',
+			'map'    => 'Map',
+		}
 
-	PRIMITIVE_CONVERT = {
-		'byte'   => 'asByte()',
-		'short'  => 'asShort()',
-		'int'    => 'asInt()',
-		'long'   => 'asLong()',
-		'ubyte'  => 'asShort()',
-		'ushort' => 'asInt()',
-		'uint'   => 'asLong()',
-		'ulong'  => 'asBigInteger()',
-		'float'  => 'asFloat()',
-		'double' => 'asDouble()',
-		'bool'   => 'asBoolean()',
-		'raw'    => 'ByteBuffer.wrap(asByteArray())',
-		'string' => 'asString()',
-		'list'   => 'asList()',
-		'map'    => 'asMap()',
-	}
+		NULLABLE_REMAP = {
+			'byte'    => 'Byte',
+			'short'   => 'Short',
+			'int'     => 'Integer',
+			'long'    => 'Long',
+			'float'   => 'Float',
+			'double'  => 'Double',
+			'boolean' => 'Boolean',
+		}
 
-	def format_convert(t)
-		# TODO type erasure
-		PRIMITIVE_CONVERT[t.name] || "convert(#{t.name}.class)"
+		TYPE_PARAMETER_REMAP = NULLABLE_REMAP
+
+		IFACE_CLASS_REMAP = {
+			'Map'     => 'HashMap',
+			'List'    => 'ArrayList',
+		}
+
+		def format_nullable_type(t)
+			if t.nullable_type?
+				real_type = t.real_type
+				name = PRIMITIVE_TYPEMAP[real_type.name] || real_type.name
+				name = NULLABLE_REMAP[name] || name
+				return real_type, name
+			else
+				name = PRIMITIVE_TYPEMAP[t.name] || name
+				return t, name
+			end
+		end
+
+		def format_parameterized_type(t, name)
+			if t.parameterized_type?
+				name + '<' +
+					t.type_params.map {|tp|
+						n = format_type(tp)
+						TYPE_PARAMETER_REMAP[n] || n
+					}.join(', ') + '>'
+			else
+				name
+			end
+		end
+
+		def format_type(t)
+			t, name = format_nullable_type(t)
+			format_parameterized_type(t, name)
+		end
+
+		def format_type_impl(t)
+			t, name = format_nullable_type(t)
+			name = IFACE_CLASS_REMAP[name] || name
+			format_parameterized_type(t, name)
+		end
+
+		PRIMITIVE_DEFAULT = {
+			'byte'    => '0',
+			'short'   => '0',
+			'int'     => '0',
+			'long'    => '0',
+			'float'   => '0.0',
+			'double'  => '0',
+			'boolean' => 'false',
+			'byte[]'  => 'new byte[0]',
+			'String'  => '""',
+		}
+
+		def format_initial_value(to, f)
+			v = f.value
+			case v
+			when IR::NilValue
+				"#{to} = null;"
+			when IR::IntValue
+				"#{to} = #{v.int};"
+			when IR::BoolValue
+				if v.bool
+					"#{to} = true;"
+				else
+					"#{to} = false;"
+				end
+			when IR::EnumValue
+				"#{to} = #{v.enum.name}.#{v.field.name};"
+			when IR::EmptyValue
+				tt, name = format_nullable_type(f.type)
+				v = PRIMITIVE_DEFAULT[name]
+				v ||= "new #{format_type_impl(f.type)}()"
+				"#{to} = #{v};"
+			else
+				raise SemanticsError, "unknown initial value type: #{v.class}"
+			end
+		end
+
+		PRIMITIVE_UNPACK = {
+			'byte'   => 'unpackByte()',
+			'short'  => 'unpackShort()',
+			'int'    => 'unpackInt()',
+			'long'   => 'unpackLong()',
+			'ubyte'  => 'unpackShort()',
+			'ushort' => 'unpackInt()',
+			'uint'   => 'unpackLong()',
+			'ulong'  => 'unpackBigInteger()',
+			'float'  => 'unpackFloat()',
+			'double' => 'unpackDouble()',
+			'bool'   => 'unpackBoolean()',
+			'raw'    => 'unpackByteArray()',
+			'string' => 'unpackString()',
+		}
+
+		def format_unpack(to, pac, t)
+			if t.parameterized_type?
+				if t.list_type?
+					e = t.type_params[0]
+					return %[{
+						#{to} = new #{format_type_impl(t)}();
+						int n = #{pac}.unpackArray();
+						#{format_type(e)} e;
+						for(int i=0; i < n; i++) {
+							#{format_unpack("e", pac, e)}
+							#{to}.add(e);
+						}
+					}]
+				elsif t.map_type?
+					k = t.type_params[0]
+					v = t.type_params[1]
+					return %[{
+						#{to} = new #{format_type_impl(t)}();
+						int n = #{pac}.unpackMap();
+						#{format_type(k)} k;
+						#{format_type(v)} v;
+						for(int i=0; i < n; i++) {
+							#{format_unpack("k", pac, k)}
+							#{format_unpack("v", pac, v)}
+							#{to}.put(k, v);
+						}
+					}]
+				end
+			end
+			method = PRIMITIVE_UNPACK[t.name] || "unpack(#{t.name}.class)"
+			"#{to} = #{pac}.#{method};"
+		end
+
+		PRIMITIVE_CONVERT = {
+			'byte'   => 'asByte()',
+			'short'  => 'asShort()',
+			'int'    => 'asInt()',
+			'long'   => 'asLong()',
+			'ubyte'  => 'asShort()',
+			'ushort' => 'asInt()',
+			'uint'   => 'asLong()',
+			'ulong'  => 'asBigInteger()',
+			'float'  => 'asFloat()',
+			'double' => 'asDouble()',
+			'bool'   => 'asBoolean()',
+			'raw'    => 'asByteArray()',
+			'string' => 'asString()',
+		}
+
+		def format_convert(to, obj, t)
+			if t.parameterized_type?
+				if t.list_type?
+					e = t.type_params[0]
+					return %[{
+						#{to} = new #{format_type_impl(t)}();
+						#{format_type(e)} e;
+						for(MessagePackObject o : #{obj}.asArray()) {
+							#{format_convert("e", "o", e)}
+							#{to}.add(e);
+						}
+					}]
+				elsif t.map_type?
+					k = t.type_params[0]
+					v = t.type_params[1]
+					return %[{
+						#{to} = new #{format_type_impl(t)}();
+						#{format_type(k)} k;
+						#{format_type(v)} v;
+						for(Map.EntrySet<MessagePackObject,MessagePackObject> kv : #{obj}.asMap().entrySet()) {
+							#{format_convert("k", "kv.getKey()", k)}
+							#{format_convert("v", "kv.getValue()", v)}
+							#{to}.put(k, v);
+						}
+					}]
+				end
+			end
+			method = PRIMITIVE_CONVERT[t.name] || "convert(new #{t.name}())"
+			"#{to} = #{obj}.#{method};"
+		end
 	end
 end
 

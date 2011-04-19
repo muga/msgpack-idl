@@ -110,8 +110,8 @@ class ParsletParser < Parslet::Parser
 		field_id.as(:field_id) >>
 		field_modifier.maybe.as(:field_modifier) >>
 		field_type.as(:field_type) >>
-		field_name.as(:field_name)
-		#eq_default_value.maybe.as(:field_default)
+		field_name.as(:field_name) >>
+		eq_value.maybe.as(:field_value)
 	}
 
 	rule(:field_id) {
@@ -199,7 +199,7 @@ class ParsletParser < Parslet::Parser
 	}
 
 
-	rule(:eq_default_value) {
+	rule(:eq_value) {
 		k_equal >> literal
 	}
 
@@ -234,9 +234,11 @@ class ParsletParser < Parslet::Parser
 
 
 	rule(:literal) {
-		literal_nil | literal_bool | literal_int | literal_float |
-		literal_str | literal_list |
-		literal_map | literal_const
+		literal_nil | literal_bool | literal_int |
+		literal_enum |
+		#literal_float | literal_str |
+		#literal_list | literal_map |
+		literal_const
 	}
 
 	rule(:literal_nil) {
@@ -249,6 +251,10 @@ class ParsletParser < Parslet::Parser
 
 	rule(:literal_const) {
 		const_name.as(:literal_const)
+	}
+
+	rule(:literal_enum) {
+		class_name.as(:literal_enum_name) >> str('.') >> field_name.as(:literal_enum_field)
 	}
 
 	rule(:literal_int) {
@@ -284,25 +290,25 @@ class ParsletParser < Parslet::Parser
 		(literal_str_dq | literal_str_sq).repeat(1).as(:literal_str_seq)
 	}
 
-	sequence :literal_list_seq, :k_comma, :literal
+	#sequence :literal_list_seq, :k_comma, :literal
+	#
+	#rule(:literal_list) {
+	#	space? >> k_lbracket >>
+	#		literal_list_seq.as(:literal_list) >>
+	#	k_rbracket
+	#}
 
-	rule(:literal_list) {
-		space? >> k_lbracket >>
-			literal_list_seq.as(:literal_list) >>
-		k_rbracket
-	}
-
-	sequence :literal_map_seq, :k_comma, :literal_map_pair
-
-	rule(:literal_map) {
-		space? >> k_lwing >>
-			literal_map_seq.as(:literal_map) >>
-		k_rwing
-	}
-
-	rule(:literal_map_pair) {
-		literal.as(:literal_map_key) >> k_colon >> literal.as(:literal_map_value)
-	}
+	#sequence :literal_map_seq, :k_comma, :literal_map_pair
+	#
+	#rule(:literal_map) {
+	#	space? >> k_lwing >>
+	#		literal_map_seq.as(:literal_map) >>
+	#	k_rwing
+	#}
+	#
+	#rule(:literal_map_pair) {
+	#	literal.as(:literal_map_key) >> k_colon >> literal.as(:literal_map_value)
+	#}
 
 
 	rule(:path) {

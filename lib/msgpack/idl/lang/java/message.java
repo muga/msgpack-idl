@@ -1,28 +1,43 @@
-#{@package}
+#{format_package}
 
 import java.util.List;
-import java.util.Set;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.HashMap;
 import java.io.IOException;
 import org.msgpack.MessageTypeException;
+import org.msgpack.MessagePackObject;
 
-public class #{@message.name} implements MessagePackable, MessageUnpackable, MessageConvertable {
-	<?rb @message.new_fields.each {|field| ?>
-	private #{format_type(field.type)} #{field.name};
+public class #{@name} implements MessagePackable, MessageUnpackable, MessageConvertable {
+	<?rb @message.new_fields.each {|f| ?>
+	private #{format_type(f.type)} #{f.name};
 	<?rb } ?>
 
-	public void messagePack(Packer _Pk) throws IOException {
+	public #{@name}() {
+		super();
+		<?rb @message.new_fields.each {|f| ?>
+			#{format_initial_value("this.#{f.name}", f)}
+		<?rb } ?>
+	}
+
+	<?rb @message.new_fields.each {|f| ?>
+	public void set#{f.name.capitalize}(#{format_type(f.type)} value) {
+		this.#{f.name} = v;
+	}
+	public #{format_type(f.type)} get#{f.name.capitalize}() {
+		return this.#{f.name};
+	}
+	<?rb } ?>
+
+	public void messagePack(Packer pk) throws IOException {
 		pk.packArray(#{@message.max_id});
 		<?rb 1.upto(@message.max_id) {|i| ?>
-		<?rb if f = @message[i]; ?>
-		_Pk.pack(this.#{f.name});
-		<?rb else ?>
-		_Pk.packNil();
-		<?rb end ?>
+			<?rb if f = @message[i]; ?>
+				pk.pack(this.#{f.name});
+			<?rb else ?>
+				pk.packNil();
+			<?rb end ?>
 		<?rb } ?>
 	}
 
@@ -34,21 +49,36 @@ public class #{@message.name} implements MessagePackable, MessageUnpackable, Mes
 		}
 
 		<?rb 1.upto(@message.max_id) {|i| ?>
-		<?rb f = @message[i] ?>
-		<?rb if !f ?>
-		pac.unpackObject();
-		<?rb elsif f.required? ?>
-		this.#{f.name} = pac.#{format_unpack(f.type)};
-		<?rb elsif i <= @message.max_required_id ?>
-		if(!pac.tryUnpackNull()) {
-			this.#{f.name} = pac.#{format_unpack(f.type)};
-		}
-		<?rb else ?>
-		if(len > #{i-1}) {
-			this.#{f.name} = pac.#{format_unpack(f.type)};
-		}
-		<?rb end ?>
+			<?rb f = @message[i] ?>
+			<?rb if !f ?>
+				<?rb if i > @message.max_required_id ?>
+				if(len < #{i}) { return; }
+				<?rb end ?>
+				pac.unpackObject();
+			<?rb elsif f.required? ?>
+				<?rb if f.type.nullable_type? ?>
+					if(!pac.tryUnpackNull()) {
+						#{format_unpack("this.#{f.name}", "pac", f.type.real_type)}
+					}
+				<?rb else ?>
+					if(!pac.tryUnpackNull()) {
+						throw new MessageTypeException("#{@message.name}.#{f.name} is not nullable bug got nil");
+					}
+					#{format_unpack("this.#{f.name}", "pac", f.type.real_type)}
+				<?rb end ?>
+			<?rb elsif f.optional? ?>
+				<?rb if i > @message.max_required_id ?>
+				if(len < #{i}) { return; }
+				<?rb end ?>
+				if(!pac.tryUnpackNull()) {
+					#{format_unpack("this.#{f.name}", "pac", f.type.real_type)}
+				}
+			<?rb end ?>
 		<?rb } ?>
+
+		for(int i=#{@message.max_id}; i < len; ++i) {
+			pac.unpackObject();
+		}
 	}
 
 	public void messageConvert(MessagePackObject obj) throws IOException, MessageTypeException {
@@ -59,24 +89,35 @@ public class #{@message.name} implements MessagePackable, MessageUnpackable, Mes
 		int len = arr.length;
 
 		if(len < #{@message.max_required_id}) {
-			throw new MessagePackObject("#{@message.name} requires at least #{@message.max_required_id} elements.");
+			throw new MessageTypeException("#{@message.name} requires at least #{@message.max_required_id} elements.");
 		}
+
+		MessagePackObject obj;
 
 		<?rb 1.upto(@message.max_id) {|i| ?>
-		<?rb if f = @message[i] ?>
-
-		<?rb if f.required? ?>
-		this.#{f.name} = arr[#{i}].#{format_convert(f.type)};  // TODO
-		<?rb else ?>
-		<?rb if i > @message.max_required_id  # optional ?>
-		if(len < #{i-1}) { return; }
-		<?rb end ?>
-		if(!arr[#{i}].isNil()) {
-			this.#{f.name} = arr[#{i}].#{format_convert(f.type)};
-		}
-		<?rb end ?>
-
-		<?rb end ?>
+			<?rb f = @message[i] ?>
+			<?rb if !f ?>
+			<?rb elsif f.required? ?>
+				obj = arr[i];
+				<?rb if f.type.nullable_type? ?>
+					if(!obj.isNil()) {
+						#{format_convert("this.#{f.name}", "obj", f.type.real_type)}
+					}
+				<?rb else ?>
+					if(!obj.isNil()) {
+						throw new MessageTypeException("#{@message.name}.#{f.name} is not nullable bug got nil");
+					}
+					#{format_convert("this.#{f.name}", "obj", f.type.real_type)}
+				<?rb end ?>
+			<?rb elsif f.optional? ?>
+				<?rb if i > @message.max_required_id ?>
+				if(len < #{i}) { return; }
+				<?rb end ?>
+				obj = arr[i];
+				if(!obj.isNil()) {
+					#{format_convert("this.#{f.name}", "obj", f.type.real_type)}
+				}
+			<?rb end ?>
 		<?rb } ?>
 	}
 }

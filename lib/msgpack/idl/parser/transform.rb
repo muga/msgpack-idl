@@ -70,23 +70,15 @@ class ParsletTransform < Parslet::Transform
 	rule(:field_id => simple(:i),
 			 :field_modifier => simple(:m),
 			 :field_type => simple(:t),
-			 :field_name => simple(:n)) {
+			 :field_name => simple(:n),
+			 :field_value => simple(:v)) {
 		m = m() ? m() : AST::FIELD_REQUIRED
-		AST::Field.new(i, t, m, n)
+		if v == nil
+			AST::Field.new(i, t, m, n)
+		else
+			AST::ValueAssignedField.new(i, t, m, n, v)
+		end
 	}
-
-	#rule(:field_id => simple(:i),
-	#		 :field_modifier => simple(:m),
-	#		 :field_type => simple(:t),
-	#		 :field_name => simple(:n),
-	#		 :field_default => simple(:v)) {
-	#	m ||= AST::FIELD_REQUIRED
-	#	if v == nil
-	#		AST::Field.new(i, t, m, n)
-	#	else
-	#		AST::ValueAssignedField.new(i, t, m, n, v)
-	#	end
-	#}
 
 	rule(:generic_type => simple(:n),
 			 :type_params => simple(:tp)) {
@@ -203,6 +195,62 @@ class ParsletTransform < Parslet::Transform
 	rule(:document => sequence(:es)) {
 		AST::Document.new(es)
 	}
+
+
+	rule(:literal_const => simple(:n)) {
+		AST::ConstLiteral.new(n)
+	}
+
+	rule(:literal_enum_name => simple(:n),
+			 :literal_enum_field => simple(:f)) {
+		AST::EnumLiteral.new(n, f)
+	}
+
+	rule(:literal_int => simple(:i)) {
+		AST::IntLiteral.new(i.to_i)
+	}
+
+	rule(:literal_float => simple(:f)) {
+		AST::FloatLiteral.new(f.to_f)
+	}
+
+	rule(:literal_str_dq => simple(:s)) {
+		s.to_s.gsub(/\\(.)/) {|e|
+			eval("\"\\#{$~[1]}\"")  # TODO escape
+		}
+	}
+
+	rule(:literal_str_sq => simple(:s)) {
+		s.to_s
+	}
+
+	rule(:literal_str_seq => sequence(:ss)) {
+		AST::StringLiteral.new(ss.join)
+	}
+
+	rule(:literal_nil => simple(:_)) {
+		AST::NilLiteral.new
+	}
+
+	rule(:literal_true => simple(:_)) {
+		AST::TrueLiteral.new
+	}
+
+	rule(:literal_false => simple(:_)) {
+		AST::FalseLiteral.new
+	}
+
+	#rule(:literal_list => simple(:a)) {
+	#	AST::ListLiteral.new(Array.new(a))
+	#}
+
+	#rule(:literal_map => simple(:ps)) {
+	#	AST::MapLiteral.new(Array.new(ps))
+	#}
+
+	#rule(:literal_map_key => simple(:k), :literal_map_value => simple(:v)) {
+	#	AST::MapLiteralPair.new(k, v)
+	#}
 end
 
 

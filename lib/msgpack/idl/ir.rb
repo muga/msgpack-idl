@@ -49,6 +49,25 @@ module IR
 	end
 
 	class Type
+		def parameterized_type?
+			false
+		end
+
+		def nullable_type?
+			false
+		end
+
+		def real_type
+			self
+		end
+
+		def list_type?
+			false
+		end
+
+		def map_type?
+			false
+		end
 	end
 
 	class PrimitiveType < Type
@@ -64,8 +83,21 @@ module IR
 			@type_params = type_params
 		end
 		attr_reader :type_params, :generic_type
+
 		def name
 			@generic_type.name
+		end
+
+		def parameterized_type?
+			true
+		end
+
+		def list_type?
+			@generic_type == Primitive.list
+		end
+
+		def map_type?
+			@generic_type == Primitive.map
 		end
 	end
 
@@ -82,17 +114,107 @@ module IR
 			@type_params = type_params
 		end
 		attr_reader :name, :type_params
+
+		def list_type?
+			false
+		end
+
+		def map_type?
+			false
+		end
 	end
 
 	class PrimitiveGenericType < GenericType
 	end
 
-	#class NullableType < ParameterizedType
-	#	def initialize(type)
-	#		@type = type
-	#	end
-	#	attr_reader :type
-	#end
+	class NullableType < ParameterizedType
+		def initialize(type)
+			super([type], Primitive.nullable)
+		end
+
+		def nullable_type?
+			true
+		end
+
+		def real_type
+			@type_params[0].real_type
+		end
+	end
+
+	module Primitive
+		def self.define(name, value)
+			(class << self; self; end).module_eval {
+				define_method(name) { value }
+			}
+		end
+
+		define :byte,    PrimitiveType.new('byte')
+		define :short,   PrimitiveType.new('short')
+		define :int,     PrimitiveType.new('int')
+		define :long,    PrimitiveType.new('long')
+		define :ubyte,   PrimitiveType.new('ubyte')
+		define :ushort,  PrimitiveType.new('ushort')
+		define :uint,    PrimitiveType.new('uint')
+		define :ulong,   PrimitiveType.new('ulong')
+		define :float,   PrimitiveType.new('float')
+		define :double,  PrimitiveType.new('double')
+		define :bool,    PrimitiveType.new('bool')
+		define :raw,     PrimitiveType.new('raw')
+		define :string,  PrimitiveType.new('string')
+		define :list,     PrimitiveGenericType.new('list', [
+												TypeParameterSymbol.new('E')])
+		define :map,      PrimitiveGenericType.new('map', [
+												TypeParameterSymbol.new('K'),
+												TypeParameterSymbol.new('V')])
+		define :nullable, PrimitiveGenericType.new('nullable', [
+												TypeParameterSymbol.new('T')])
+
+		INT_TYPES = [byte, short, int, long, ubyte, ushort, uint, ulong]
+	end
+
+	class Value
+	end
+
+	class NilValue < Value
+		n = NilValue.new
+
+		(class << self; self; end).module_eval {
+			define_method(:nil) { n }
+		}
+	end
+
+	class BoolValue < Value
+		def initialize(bool)
+			@bool = bool
+		end
+		attr_reader :bool
+
+		t = BoolValue.new(true)
+		f = BoolValue.new(false)
+
+		(class << self; self; end).module_eval {
+			define_method(:true) { t }
+			define_method(:false) { f }
+		}
+	end
+
+	class IntValue < Value
+		def initialize(int)
+			@int = int
+		end
+		attr_reader :int
+	end
+
+	class EnumValue < Value
+		def initialize(enum, field)
+			@enum = enum
+			@field = field
+		end
+		attr_reader :enum, :field
+	end
+
+	class EmptyValue < Value
+	end
 
 	class Message < Type
 		def initialize(name, super_class, new_fields)
@@ -121,23 +243,27 @@ module IR
 	end
 
 	class Field
-		def initialize(id, type, name, is_required)
+		def initialize(id, type, name, option, value)
 			@id = id
 			@type = type
 			@name = name
-			@is_required = is_required
+			@option = option
+			@value = value
 		end
 
-		attr_reader :id, :type, :name
+		attr_reader :id, :type, :name, :option, :value
 
 		def required?
-			@is_required
+			@option == FIELD_REQUIRED
 		end
 
 		def optional?
-			!@is_required
+			@option == FIELD_OPTIONAL
 		end
 	end
+
+	FIELD_OPTIONAL = :optional
+	FIELD_REQUIRED = :required
 
 	class Enum < Type
 		def initialize(name, fields)

@@ -29,8 +29,11 @@ class Evaluator
 			@generic_type = generic_type
 			@nullable = nullable
 		end
-
 		attr_reader :generic_type, :nullable
+
+		def nullable?
+			@nullable
+		end
 
 		def match_all(name, array)
 			if @name != name
@@ -155,9 +158,13 @@ class Evaluator
 	def resolve_simple_type(e)
 		type = @types[e.name]
 		unless type
-			raise NameNotFoundError, "message not found: #{e.name}"
+			raise NameNotFoundError, "type not found: #{e.name}"
 		end
-		type
+		if e.nullable? && !type.is_a?(IR::NullableType)
+			IR::NullableType.new(type)
+		else
+			type
+		end
 	end
 
 	def resolve_generic_type(e)
@@ -175,8 +182,12 @@ class Evaluator
 		unless resolved_types
 			raise NameNotFoundError, "generic type not matched: #{e.name}"
 		end
-		IR::ParameterizedType.new(resolved_types, template.generic_type)
-		#TODO template.nullable?||e.nullable?
+		type = IR::ParameterizedType.new(resolved_types, template.generic_type)
+		if template.nullable || e.nullable?
+			IR::NullableType.new(type)
+		else
+			type
+		end
 	end
 
 	def resolve_type(e)
@@ -220,14 +231,127 @@ class Evaluator
 			used_names[e.name] = e.name
 
 			type = resolve_type(e.type)
-			required = e.modifier == AST::FIELD_OPTIONAL ? false : true
+			if e.modifier == AST::FIELD_OPTIONAL
+				option  = IR::FIELD_OPTIONAL
+			else
+				option  = IR::FIELD_REQUIRED
+			end
 
-			IR::Field.new(e.id, type, e.name, required)
+			if e.is_a?(AST::ValueAssignedField)
+				v = resolve_initial_value(type, e.value)
+			else
+				v = resolve_implicit_value(type)
+			end
+
+			IR::Field.new(e.id, type, e.name, option, v)
 		}.sort_by {|f|
 			f.id
 		}
 
 		return new_fields
+	end
+
+	BUILT_IN_LITERAL = {
+		'BYTE_MAX'   => AST::IntLiteral.new((2**7)-1),
+		'SHORT_MAX'  => AST::IntLiteral.new((2**15)-1),
+		'INT_MAX'    => AST::IntLiteral.new((2**31)-1),
+		'LONG_MAX'   => AST::IntLiteral.new((2**63)-1),
+		'UBYTE_MAX'  => AST::IntLiteral.new((2**8)-1),
+		'USHORT_MAX' => AST::IntLiteral.new((2**16)-1),
+		'UINT_MAX'   => AST::IntLiteral.new((2**32)-1),
+		'ULONG_MAX'  => AST::IntLiteral.new((2**64)-1),
+		'BYTE_MIN'   => AST::IntLiteral.new(-(2**7)),
+		'SHORT_MIN'  => AST::IntLiteral.new(-(2**15)),
+		'INT_MIN'    => AST::IntLiteral.new(-(2**31)),
+		'LONG_MIN'   => AST::IntLiteral.new(-(2**63)),
+	}
+
+	def resolve_initial_value(type, e)
+		if e.is_a?(ConstLiteral)
+			e = BUILT_IN_LITERAL[e.name] || e
+		end
+		v = case e
+		when NilLiteral
+			IR::NilValue.nil
+
+		when TrueLiteral
+			IR::BoolValue.true
+
+		when FalseLiteral
+			IR::BoolValue.false
+
+		when IntLiteral
+			IR::IntValue.new(e.value)
+
+		when EnumLiteral
+			enum = resolve_type(e.name)
+			if !enum.is_a?(IR::Enum)
+				raise NameNotFoundError, "not a enum type: #{e.name}"
+			end
+			f = enum.fields.find {|f|
+				f.name == e.field
+			}
+			if !f
+				raise NameNotFoundError, "no such field in enum `#{e.name}': #{e.field}"
+			end
+			IR::EnumValue.new(enum, f)
+
+		when ConstLiteral
+			raise NameNotFoundError, "unknown constant: #{name}"
+
+		else
+			raise SemanticsError, "Unknown literal type: #{e.class}"
+		end
+
+		check_assignable(type, v)
+		v
+	end
+
+	def check_assignable(type, v)
+		if type.nullable_type? && v != IR::NilValue.nil
+			raise TypeError, "not-nullable value for nullable type is not allowed"
+		end
+
+		case v
+		when IR::NilValue
+			unless type.nullable_type?
+				raise TypeError, "nullable is expected: #{type}"
+			end
+
+		when IR::IntValue
+			unless IR::Primitive::INT_TYPES.include?(type)
+				raise TypeError, "integer type is expected: #{type}"
+			end
+			# TODO overflow
+
+		when IR::BoolValue
+			if type != IR::Primitive::bool
+				raise TypeError, "bool type is expected: #{type}"
+			end
+
+		end
+	end
+
+	def resolve_implicit_value(t)
+		if t.nullable_type?
+			return IR::NilValue.nil
+		end
+
+		if IR::Primitive::INT_TYPES.include?(t)
+			IR::IntValue.new(0)
+
+		elsif t == IR::Primitive.bool
+			IR::BoolValue.false
+
+		elsif t.is_a?(IR::Enum)
+			if t.fields.empty?
+				raise TypeError, "empty enum: #{t.name}"
+			end
+			t.fields.first
+
+		else
+			IR::EmptyValue.new
+		end
 	end
 
 	def resolve_enum_fields(fields)
@@ -322,9 +446,19 @@ class Evaluator
 			used_names[e.name] = e.name
 
 			type = resolve_type(e.type)
-			required = e.modifier == AST::FIELD_OPTIONAL ? false : true
+			if e.modifier == AST::FIELD_OPTIONAL
+				option  = IR::FIELD_OPTIONAL
+			else
+				option  = IR::FIELD_REQUIRED
+			end
 
-			IR::Argument.new(e.id, type, e.name, required)
+			if e.is_a?(AST::ValueAssignedField)
+				v = resolve_initial_value(type, e.value)
+			else
+				v = resolve_implicit_value(type)
+			end
+
+			IR::Argument.new(e.id, type, e.name, option, v)
 		}.sort_by {|a|
 			a.id
 		}
@@ -372,17 +506,14 @@ class Evaluator
 	def init_built_in
 		%w[byte short int long ubyte ushort uint ulong float double bool raw string].each {|name|
 			check_name(name, nil)
-			@types[name] = IR::PrimitiveType.new(name)
+			@types[name] = IR::Primitive.send(name)
 		}
-		@generic_types << Template.new(
-				IR::PrimitiveGenericType.new('list', [
-						IR::TypeParameterSymbol.new('E')]))
 		check_name('list', nil)
-		@generic_types << Template.new(
-				IR::PrimitiveGenericType.new('map', [
-						IR::TypeParameterSymbol.new('K'),
-						IR::TypeParameterSymbol.new('V')]))
+		@generic_types << Template.new(IR::Primitive.list)
 		check_name('map', nil)
+		@generic_types << Template.new(IR::Primitive.map)
+		#check_name('nullable', nil)
+		#@generic_types << Template.new(IR::Primitive.nullable)
 	end
 end
 

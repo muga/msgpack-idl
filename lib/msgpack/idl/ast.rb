@@ -67,6 +67,14 @@ module AST
 		attr_reader :id, :type, :name, :modifier
 	end
 
+	class ValueAssignedField < Field
+		def initialize(id, type, modifier, name, value)
+			super(id, type, modifier, name)
+			@value = value
+		end
+		attr_reader :value
+	end
+
 
 	class Enum < Element
 		def initialize(name, fields)
@@ -137,7 +145,7 @@ module AST
 			@name = name
 			@nullable = nullable
 		end
-		attr_reader :name
+		attr_reader :name, :nullable
 
 		def nullable?
 			@nullable
@@ -150,14 +158,91 @@ module AST
 			@type_params = type_params
 		end
 		attr_reader :type_params
-
-		def nullable?
-			@nullable
-		end
 	end
 
 	FIELD_OPTIONAL = :optional
 	FIELD_REQUIRED = :required
+
+
+	class Literal
+	end
+
+	class ConstLiteral < Literal
+		def initialize(name)
+			@name = name
+		end
+		attr_reader :name
+	end
+
+	class EnumLiteral < Literal
+		def initialize(name, field)
+			@name = name
+			@field = field
+		end
+		attr_reader :name, :field
+	end
+
+	class IntLiteral < Literal
+		def initialize(value)
+			@value = value
+		end
+		attr_reader :value
+	end
+
+	class FlaotLiteral < Literal
+		def initialize(value)
+			@value = value
+		end
+		attr_reader :value
+	end
+
+	class NilLiteral < Literal
+	end
+
+	class BoolLiteral < Literal
+		def initialize(value)
+			@value = value
+		end
+		attr_reader :value
+	end
+
+	class TrueLiteral < BoolLiteral
+		def initialize
+			super(true)
+		end
+	end
+
+	class FalseLiteral < BoolLiteral
+		def initialize
+			super(false)
+		end
+	end
+
+	class StringLiteral < Literal
+		def initialize(value)
+			@value = value
+		end
+	end
+
+	#class ListLiteral < Literal
+	#	def initialize(array)
+	#		@array = array
+	#	end
+	#end
+
+	#class MapLiteralPair
+	#	def initialize(k, v)
+	#		@key = k
+	#		@value = v
+	#	end
+	#end
+
+	#class MapLiteral < Literal
+	#	def initialize(pairs)
+	#		@pairs = pairs
+	#	end
+	#end
+
 
 	class Sequence < Array
 	end
