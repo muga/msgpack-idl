@@ -5,7 +5,7 @@ class #{@name}
 		implements MessagePackable, MessageUnpackable, MessageConvertable {
 
 	<?rb @message.new_fields.each {|f| ?>
-	private #{format_type(f.type)} #{f.name};
+	protected #{format_type(f.type)} #{f.name};
 	<?rb } ?>
 
 	public #{@name}() {
@@ -18,23 +18,25 @@ class #{@name}
 	}
 
 	<?rb fields = @message.all_fields ?>
+	<?rb unless fields.empty? ?>
 	public #{@name}(#{ fields.map {|f| format_type(f.type)+" "+f.name }.join(', ') }) {
 		<?rb fields.each {|f| ?>
 		this.#{f.name} = #{f.name};
-		<?rb } ?>
-	}
-
-	<?rb if @message.max_id != @message.max_required_id && @message.max_required_id > 0 ?>
-	<?rb fields = @message.all_fields[0, @message.max_required_id] ?>
-	public #{@name}(#{ fields.map {|f| format_type(f.type)+" "+f.name }.join(', ') }) {
-		<?rb fields.each {|f| ?>
-		this.#{f.name} = #{f.name};
-		<?rb } ?>
-		<?rb @message.all_fields[@message.max_required_id..-1].each {|f| ?>
-		#{format_initial_value("this.#{f.name}", f)}
 		<?rb } ?>
 	}
 	<?rb end ?>
+
+	<?rb if @message.max_id != @message.max_required_id && @message.max_required_id > 0 ?>
+		<?rb fields = @message.all_fields[0, @message.max_required_id] ?>
+		public #{@name}(#{ fields.map {|f| format_type(f.type)+" "+f.name }.join(', ') }) {
+			<?rb fields.each {|f| ?>
+				this.#{f.name} = #{f.name};
+			<?rb } ?>
+			<?rb @message.all_fields[@message.max_required_id..-1].each {|f| ?>
+				#{format_initial_value("this.#{f.name}", f)}
+			<?rb } ?>
+		}
+		<?rb end ?>
 
 	<?rb @message.new_fields.each {|f| ?>
 	public void set#{f.name.capitalize}(#{format_type(f.type)} #{f.name}) {
@@ -96,7 +98,7 @@ class #{@name}
 		}
 	}
 
-	public void messageConvert(MessagePackObject obj) throws IOException, MessageTypeException {
+	public void messageConvert(MessagePackObject obj) throws MessageTypeException {
 		if(!obj.isArrayType()) {
 			throw new MessageTypeException("target is not array");
 		}
@@ -107,13 +109,11 @@ class #{@name}
 			throw new MessageTypeException("#{@message.name} requires at least #{@message.max_required_id} elements.");
 		}
 
-		MessagePackObject obj;
-
 		<?rb 1.upto(@message.max_id) {|i| ?>
 			<?rb f = @message[i] ?>
 			<?rb if !f ?>
 			<?rb elsif f.required? ?>
-				obj = arr[i];
+				obj = arr[#{i-1}];
 				<?rb if f.type.nullable_type? ?>
 					if(!obj.isNil()) {
 						#{format_convert("this.#{f.name}", "obj", f.type.real_type)}
@@ -128,7 +128,7 @@ class #{@name}
 				<?rb if i > @message.max_required_id ?>
 				if(len < #{i}) { return; }
 				<?rb end ?>
-				obj = arr[i];
+				obj = arr[#{i-1}];
 				if(!obj.isNil()) {
 					#{format_convert("this.#{f.name}", "obj", f.type.real_type)}
 				}

@@ -4,20 +4,20 @@ import java.util.Map;
 import java.util.HashMap;
 import java.io.IOException;
 import org.msgpack.MessageTypeException;
-import org.msgpack.rpc.Dispatcher;
+import org.msgpack.rpc.dispatcher.Dispatcher;
 import org.msgpack.rpc.Request;
 import static #{format_package_name}.#{@name}.*;
 
 public class #{@name} implements Dispatcher {
 	<?rb @functions.each {|f| ?>
 	public interface I#{f.name} {
-		#{format_type(f.return_type)} #{f.name}(A#{f.name} args);
+		public #{format_type(f.return_type)} #{f.name}(A#{f.name} args);
 	}
 	<?rb } ?>
 
 	<?rb @functions.each {|f| ?>
 	public void set#{f.name.capitalize}(I#{f.name} #{f.name}) {
-		this.#{f.name} = f.name;
+		this.#{f.name} = #{f.name};
 	}
 	public I#{f.name} get#{f.name.capitalize}() {
 		return this.#{f.name};
@@ -47,10 +47,10 @@ public class #{@name} implements Dispatcher {
 					A#{f.name} args = new A#{f.name}();
 					args.messageConvert(request.getArguments());
 					<?rb if f.return_type.void_type? ?>
-						#{f.name}(args);
+						#{f.name}.#{f.name}(args);
 						request.sendResult(null);
 					<?rb else ?>
-						#{format_type(f.return_type)} r = #{f.name}(args);
+						#{format_type(f.return_type)} r = #{f.name}.#{f.name}(args);
 						request.sendResult(r);
 					<?rb end ?>
 				}

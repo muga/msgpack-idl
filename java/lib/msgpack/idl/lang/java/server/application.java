@@ -4,7 +4,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.io.IOException;
 import org.msgpack.MessageTypeException;
-import org.msgpack.rpc.Dispatcher;
+import org.msgpack.rpc.dispatcher.Dispatcher;
 import org.msgpack.rpc.Request;
 
 public class #{@name} implements Dispatcher {
@@ -48,8 +48,12 @@ public class #{@name} implements Dispatcher {
 			<?rb sv.functions.each {|f| ?>
 				<?rb if f.super_version ?>
 					this.#{c.name}_#{sv.version}.set#{f.name.capitalize}(new #{s.name}_#{sv.version}.I#{f.name}() {
-						#{format_type(f.return_type)} #{f.name}(A#{f.name} args) {
+						public #{format_type(f.return_type)} #{f.name}(A#{f.name} args) {
+							<?rb if f.return_type.void_type? ?>
+							#{c.name}_#{f.super_version}.get#{f.name.capitalize}(args);
+							<?rb else ?>
 							return #{c.name}_#{f.super_version}.get#{f.name.capitalize}(args);
+							<?rb end ?>
 						}
 					});
 				<?rb end ?>

@@ -299,8 +299,8 @@ class JavaGenerator < GeneratorModule
 			'short'   => '0',
 			'int'     => '0',
 			'long'    => '0',
-			'float'   => '0.0',
-			'double'  => '0',
+			'float'   => '0.0f',
+			'double'  => '0.0',
 			'boolean' => 'false',
 			'byte[]'  => 'new byte[0]',
 			'String'  => '""',
@@ -311,14 +311,24 @@ class JavaGenerator < GeneratorModule
 			case v
 			when IR::NilValue
 				"#{to} = null;"
+
 			when IR::IntValue
-				"#{to} = #{v.int};"
+				tt, name = format_nullable_type(f.type)
+				if name == "BigInteger"
+					"#{to} = BigInteger.valueOf(#{v.int}L);"
+				elsif name == "long"
+					"#{to} = #{v.int}L;"
+				else
+					"#{to} = #{v.int};"
+				end
+
 			when IR::BoolValue
 				if v.bool
 					"#{to} = true;"
 				else
 					"#{to} = false;"
 				end
+
 			when IR::EnumValue
 				"#{to} = #{v.enum.name}.#{v.field.name};"
 			when IR::EmptyValue
@@ -376,6 +386,10 @@ class JavaGenerator < GeneratorModule
 					}]
 				end
 
+			elsif t.is_a?(IR::Message)
+				return %[#{to} = new #{t.name}();
+					#{to}.messageUnpack(#{pac});]
+
 			elsif t.is_a?(IR::Enum)
 				return "#{to} = #{t.name}.enumOf(#{pac}.unpackInt());"
 			end
@@ -419,13 +433,17 @@ class JavaGenerator < GeneratorModule
 						#{to} = new #{format_type_impl(t)}();
 						#{format_type(k)} k;
 						#{format_type(v)} v;
-						for(Map.EntrySet<MessagePackObject,MessagePackObject> kv : #{obj}.asMap().entrySet()) {
+						for(Map.Entry<MessagePackObject,MessagePackObject> kv : #{obj}.asMap().entrySet()) {
 							#{format_convert("k", "kv.getKey()", k)}
 							#{format_convert("v", "kv.getValue()", v)}
 							#{to}.put(k, v);
 						}
 					}]
 				end
+
+			elsif t.is_a?(IR::Message)
+				return %[#{to} = new #{t.name}();
+					#{to}.messageConvert(#{obj});]
 
 			elsif t.is_a?(IR::Enum)
 				return "#{to} = #{t.name}.enumOf(#{obj}.asInt());"

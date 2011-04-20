@@ -1,6 +1,8 @@
 #{format_package}
 
+import java.io.IOException;
 import org.msgpack.MessageTypeException;
+import org.msgpack.Packer;
 import org.msgpack.MessagePackable;
 
 public enum #{@name} implements MessagePackable {
