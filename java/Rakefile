@@ -1,0 +1,53 @@
+require 'rake'
+require 'rake/testtask'
+require 'rake/clean'
+
+begin
+	require 'jeweler'
+	Jeweler::Tasks.new do |gemspec|
+		gemspec.name = "msgpack-idl-java"
+		gemspec.summary = "MessagePack IDL Processor Language Module for Java"
+		gemspec.author = "FURUHASHI Sadayuki"
+		gemspec.email = "frsyuki@users.sourceforge.jp"
+		gemspec.homepage = "http://msgpack.org/"
+		gemspec.rubyforge_project = "msgpack"
+		gemspec.has_rdoc = true
+		gemspec.add_dependency "msgpack-idl", ">= 0.1.0"
+		gemspec.add_dependency "tenjin", ">= 0.6.1"
+		gemspec.require_paths = ["lib"]
+		gemspec.test_files = Dir["test/test_*.rb"]
+		gemspec.files = Dir["lib/**/*", "ext/**/*", "test/**/*", "spec/**/*", "tasks/**/*"] + %w[AUTHORS ChangeLog README]
+		gemspec.add_development_dependency('rspec')
+	end
+	Jeweler::GemcutterTasks.new
+rescue LoadError
+	puts "Jeweler not available. Install it with: gem install jeweler"
+end
+
+VERSION_FILE = "lib/msgpack/idl/lang/java/version.rb"
+
+file VERSION_FILE => ["VERSION"] do |t|
+	version = File.read("VERSION").strip
+	File.open(VERSION_FILE, "w") {|f|
+		f.write <<EOF
+module MessagePack
+module RPC
+module IDL
+module Lang
+module Java
+
+VERSION = '#{version}'
+
+end
+end
+end
+end
+end
+EOF
+	}
+end
+
+task :default => [VERSION_FILE, :build]
+
+#task :test => ['test:unit','spec:unit']
+#load 'tasks/msgpack_idl_tasks.rake'

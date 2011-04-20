@@ -1,0 +1,27 @@
+
+= MessagePack IDL Language Module for Java
+
+== Description
+
+== Installation
+
+=== Archive Installation
+
+  rake
+  gem install pkg/msgpack-idl-java-*
+
+=== Gem Installation
+
+  gem install msgpack-idl-java
+
+or
+
+  gem install msgpack-idl
+  msgpack-idl-install java
+
+== Copyright
+
+Author::    frsyuki <frsyuki@users.sourceforge.jp>
+Copyright:: Copyright (c) 2011 FURUHASHI Sadayuki
+License::   Apache License, Version 2.0
+

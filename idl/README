@@ -1,0 +1,22 @@
+
+= MessagePack IDL
+
+== Description
+
+== Installation
+
+=== Archive Installation
+
+  rake
+  gem install pkg/msgpack-idl-*
+
+=== Gem Installation
+
+  gem install msgpack-idl
+
+== Copyright
+
+Author::    frsyuki <frsyuki@users.sourceforge.jp>
+Copyright:: Copyright (c) 2011 FURUHASHI Sadayuki
+License::   Apache License, Version 2.0
+

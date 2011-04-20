@@ -60,8 +60,9 @@ require 'msgpack/idl/parser/transform'
 require 'msgpack/idl/parser'
 require 'msgpack/idl/evaluator'
 require 'msgpack/idl/generator'
-require 'msgpack/idl/lang/java'
 require 'pp'
+
+require "msgpack/idl/lang/#{lang}"
 
 parser = MessagePack::IDL::Parser.new
 paths.each {|path|
