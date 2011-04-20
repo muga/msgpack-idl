@@ -48,18 +48,21 @@ class JavaGenerator < GeneratorModule
 	end
 
 	def gen_messages
-		ctx = MessageContext.new(self, :namespace, :message, :name)
+		ctx = Context.new(self, :namespace, :message, :super_class, :name)
 		ctx.namespace = @ir.namespace
 
 		@ir.messages.each {|t|
 			ctx.message = t
+			if t.super_class
+				ctx.super_class = t.super_class.name
+			end
 			ctx.name = t.name
 			render_file('message.java', ctx, "#{ctx.name}")
 		}
 	end
 
 	def gen_services
-		ctx = ServiceVersionContext.new(self, :namespace, :service, :version, :functions, :name)
+		ctx = Context.new(self, :namespace, :service, :version, :functions, :name)
 		ctx.namespace = @ir.namespace
 
 		@ir.services.each {|s|
@@ -74,7 +77,7 @@ class JavaGenerator < GeneratorModule
 	end
 
 	def gen_server_services
-		ctx = ServiceVersionContext.new(self, :namespace, :service, :version, :functions, :name)
+		ctx = Context.new(self, :namespace, :service, :version, :functions, :name)
 		ctx.namespace = @ir.namespace
 
 		@ir.services.each {|s|
@@ -89,10 +92,15 @@ class JavaGenerator < GeneratorModule
 	end
 
 	def gen_server_applications
-		ctx = ApplicationContext.new(self, :namespace, :name, :scopes, :default_scope)
+		ctx = Context.new(self, :namespace, :name, :scopes, :default_scope)
 		ctx.namespace = @ir.namespace
 
-		@ir.applications.each {|app|
+		service_apps = @ir.services.map {|s|
+			scopes = [IR::Scope.new("", s, s.versions.last.version, true)]
+			IR::Application.new(s.name, scopes)
+		}
+
+		(@ir.applications + service_apps).each {|app|
 			ctx.name = app.name
 			ctx.scopes = app.scopes
 			ctx.default_scope = app.default_scope
@@ -101,7 +109,7 @@ class JavaGenerator < GeneratorModule
 	end
 
 	def gen_client_services
-		ctx = ServiceVersionContext.new(self, :namespace, :service, :version, :functions, :name)
+		ctx = Context.new(self, :namespace, :service, :version, :functions, :name)
 		ctx.namespace = @ir.namespace
 
 		@ir.services.each {|s|
@@ -116,6 +124,15 @@ class JavaGenerator < GeneratorModule
 	end
 
 	def gen_client_applications
+		ctx = Context.new(self, :namespace, :name, :scopes, :default_scope)
+		ctx.namespace = @ir.namespace
+
+		@ir.applications.each {|app|
+			ctx.name = app.name
+			ctx.scopes = app.scopes
+			ctx.default_scope = app.default_scope
+			render_file('client/application.java', ctx, "client/#{ctx.name}")
+		}
 	end
 
 	def render(template_fname, ctx)
@@ -133,8 +150,13 @@ class JavaGenerator < GeneratorModule
 	end
 
 	def format_message(t, name = t.name)
-		ctx = MessageContext.new(self, :message, :name)
+		ctx = Context.new(self, :message, :super_class, :name)
 		ctx.message = t
+		if t.super_class
+			ctx.super_class = t.super_class.name
+		elsif t.is_a?(IR::Exception)
+			ctx.super_class = "RemoteError"
+		end
 		ctx.name = name
 		render('message_body.java', ctx)
 	end
@@ -201,7 +223,9 @@ class JavaGenerator < GeneratorModule
 			'boolean' => 'Boolean',
 		}
 
-		TYPE_PARAMETER_REMAP = NULLABLE_REMAP
+		TYPE_PARAMETER_REMAP = NULLABLE_REMAP.merge({
+			:void     => 'Void',
+		})
 
 		IFACE_CLASS_REMAP = {
 			'Map'     => 'HashMap',
@@ -240,9 +264,13 @@ class JavaGenerator < GeneratorModule
 		def format_message(t, name = t.name)
 			@gen.format_message(t, name)
 		end
-	end
 
-	class MessageContext < Context
+		def format_type_parameter(t)
+			t, name = format_nullable_type(t)
+			name = TYPE_PARAMETER_REMAP[name] || name
+			format_parameterized_type(t, name)
+		end
+
 		def format_type_impl(t)
 			t, name = format_nullable_type(t)
 			name = IFACE_CLASS_REMAP[name] || name
@@ -381,15 +409,6 @@ class JavaGenerator < GeneratorModule
 			method = PRIMITIVE_CONVERT[t.name] || "convert(new #{t.name}())"
 			"#{to} = #{obj}.#{method};"
 		end
-	end
-
-	class ServiceContext < Context
-	end
-
-	class ServiceVersionContext < ServiceContext
-	end
-
-	class ApplicationContext < ServiceContext
 	end
 end
 

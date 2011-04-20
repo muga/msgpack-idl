@@ -1,14 +1,40 @@
-class #{@name} implements MessagePackable, MessageUnpackable, MessageConvertable {
+class #{@name}
+<?rb if @super_class ?>
+		extends #{@super_class}
+<?rb end ?>
+		implements MessagePackable, MessageUnpackable, MessageConvertable {
+
 	<?rb @message.new_fields.each {|f| ?>
 	private #{format_type(f.type)} #{f.name};
 	<?rb } ?>
 
 	public #{@name}() {
+	<?rb if @super_class ?>
 		super();
-		<?rb @message.new_fields.each {|f| ?>
-			#{format_initial_value("this.#{f.name}", f)}
+	<?rb end ?>
+	<?rb @message.new_fields.each {|f| ?>
+		#{format_initial_value("this.#{f.name}", f)}
+	<?rb } ?>
+	}
+
+	<?rb fields = @message.all_fields ?>
+	public #{@name}(#{ fields.map {|f| format_type(f.type)+" "+f.name }.join(', ') }) {
+		<?rb fields.each {|f| ?>
+		this.#{f.name} = #{f.name};
 		<?rb } ?>
 	}
+
+	<?rb if @message.max_id != @message.max_required_id && @message.max_required_id > 0 ?>
+	<?rb fields = @message.all_fields[0, @message.max_required_id] ?>
+	public #{@name}(#{ fields.map {|f| format_type(f.type)+" "+f.name }.join(', ') }) {
+		<?rb fields.each {|f| ?>
+		this.#{f.name} = #{f.name};
+		<?rb } ?>
+		<?rb @message.all_fields[@message.max_required_id..-1].each {|f| ?>
+		#{format_initial_value("this.#{f.name}", f)}
+		<?rb } ?>
+	}
+	<?rb end ?>
 
 	<?rb @message.new_fields.each {|f| ?>
 	public void set#{f.name.capitalize}(#{format_type(f.type)} value) {

@@ -20,7 +20,8 @@ Gem::Specification.new do |s|
      "lib/msgpack/idl/lang/java/message_body.java",
      "lib/msgpack/idl/lang/java/server/application.java",
      "lib/msgpack/idl/lang/java/server/service_version.java",
-     "lib/msgpack/idl/lang/java/service_version.java"
+     "lib/msgpack/idl/lang/java/service_version.java",
+     "lib/msgpack/idl/lang/java/version.rb"
   ]
   s.homepage = %q{http://msgpack.org/}
   s.rdoc_options = ["--charset=UTF-8"]

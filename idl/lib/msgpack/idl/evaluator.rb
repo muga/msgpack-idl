@@ -60,7 +60,6 @@ class Evaluator
 
 		@types = {}  # name:String => AST::Type
 		@generic_types = []  # Template
-		@void_type = IR::PrimitiveType.new('void')
 
 		@global_namespace = ""   # Namespace
 		@lang_namespace = {}     # lang:String => scope:Namespace
@@ -458,7 +457,7 @@ class Evaluator
 
 			args = resolve_args(e.args)
 			if e.return_type.name == "void"
-				return_type = @void_type
+				return_type = IR::Primitive.void
 			else
 				return_type = resolve_type(e.return_type)
 			end

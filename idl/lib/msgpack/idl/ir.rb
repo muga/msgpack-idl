@@ -68,6 +68,10 @@ module IR
 		def map_type?
 			false
 		end
+
+		def void_type?
+			false
+		end
 	end
 
 	class PrimitiveType < Type
@@ -75,6 +79,10 @@ module IR
 			@name = name
 		end
 		attr_reader :name
+
+		def void_type?
+			self == Primitive.void
+		end
 	end
 
 	class ParameterizedType < Type
@@ -168,6 +176,7 @@ module IR
 												TypeParameterSymbol.new('V')])
 		define :nullable, PrimitiveGenericType.new('nullable', [
 												TypeParameterSymbol.new('T')])
+		define :void,    PrimitiveType.new('void')
 
 		INT_TYPES = [byte, short, int, long, ubyte, ushort, uint, ulong]
 	end
