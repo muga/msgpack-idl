@@ -15,6 +15,15 @@ public class #{@name} implements Dispatcher {
 		<?rb } ?>
 	<?rb } ?>
 
+	<?rb @scopes.each {|c| ?>
+		<?rb s = c.service ?>
+		<?rb s.versions_upto(c.version) {|sv| ?>
+			public #{s.name}_#{sv.version} #{c.name}_#{sv.version}() {
+				return this.#{c.name}_#{sv.version};
+			}
+		<?rb } ?>
+	<?rb } ?>
+
 	private HashMap<String, Dispatcher> scopeDispatchTable;
 
 	public #{@name}() {

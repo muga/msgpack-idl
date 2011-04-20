@@ -21,17 +21,25 @@ module IDL
 
 module IR
 	class Spec
-		def initialize(namespace, messages, services, applications)
+		def initialize(namespace, types, services, applications)
 			@namespace = namespace
-			@messages = messages
+			@types = types
 			@services = services
 			@applications = applications
 		end
 
 		attr_reader :namespace
-		attr_reader :messages
+		attr_reader :types
 		attr_reader :services
 		attr_reader :applications
+
+		def messages
+			@types.select {|t| t.is_a?(Message) }
+		end
+
+		def enums
+			@types.select {|t| t.is_a?(Enum) }
+		end
 	end
 
 

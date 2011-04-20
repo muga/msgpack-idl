@@ -112,9 +112,9 @@ class Evaluator
 			add_enum(e.name, fields)
 
 		when AST::Service
-			s = check_service_version(e.name, e.version)
-			funcs = resolve_funcs(e.funcs)
 			v = e.version || 0
+			s = check_service_version(e.name, v)
+			funcs = resolve_funcs(e.funcs)
 			check_service_funcs(s, funcs, v) if s
 			add_service_version(s, e.name, v, funcs)
 
@@ -383,7 +383,7 @@ class Evaluator
 			if t.fields.empty?
 				raise TypeError, "empty enum: #{t.name}"
 			end
-			t.fields.first
+			IR::EnumValue.new(t, t.fields.first)
 
 		else
 			IR::EmptyValue.new

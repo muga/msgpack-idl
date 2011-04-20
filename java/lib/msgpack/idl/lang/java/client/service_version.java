@@ -15,14 +15,16 @@ public class #{@name} extends Closeable {
 		this(session, null);
 	}
 
+	<?rb if @version ?>
 	public #{@name}(Session session, String scope) {
 		this.session = session;
 		if(scope != null) {
 			this.suffix = ":"+scope+":#{@version}";
 		} else {
-			this.suffix = null;
+			this.suffix = ":#{@version}";
 		}
 	}
+	<?rb end ?>
 
 	public void close() {
 		if(session instanceof Client) {
@@ -30,11 +32,13 @@ public class #{@name} extends Closeable {
 		}
 	}
 
+	<?rb if @version ?>
 	<?rb @service.versions_upto(@version-1) {|sv| ?>
 	public #{@service.name}_#{sv.version} version#{sv.version}() {
 		return new #{@service.name}_#{sv.version}(this.session, this.scope);
 	}
 	<?rb } ?>
+	<?rb end ?>
 
 	<?rb @functions.each {|f| ?>
 	public #{format_type(f.return_type)} #{f.name}(A#{f.name} args) {

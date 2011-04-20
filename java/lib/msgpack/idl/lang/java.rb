@@ -32,6 +32,7 @@ class JavaGenerator < GeneratorModule
 
 	def generate!
 		gen_init
+		gen_enums
 		gen_messages
 		gen_services
 		gen_server_services
@@ -45,6 +46,18 @@ class JavaGenerator < GeneratorModule
 		@pkgoutdir = File.join(@outdir, @ir.namespace)
 
 		@engine = Tenjin::Engine.new(:cache => false)
+	end
+
+	def gen_enums
+		ctx = Context.new(self, :namespace, :enum, :fields, :name)
+		ctx.namespace = @ir.namespace
+
+		@ir.enums.each {|t|
+			ctx.enum = t
+			ctx.name = t.name
+			ctx.fields = t.fields
+			render_file('enum.java', ctx, "#{ctx.name}")
+		}
 	end
 
 	def gen_messages
@@ -120,6 +133,10 @@ class JavaGenerator < GeneratorModule
 				ctx.name = "#{s.name}_#{v.version}"
 				render_file('client/service_version.java', ctx, "client/#{ctx.name}")
 			}
+			ctx.version = nil
+			ctx.functions = s.versions.last.functions
+			ctx.name = "#{s.name}"
+			render_file('client/service_version.java', ctx, "client/#{ctx.name}")
 		}
 	end
 
@@ -239,7 +256,7 @@ class JavaGenerator < GeneratorModule
 				name = NULLABLE_REMAP[name] || name
 				return real_type, name
 			else
-				name = PRIMITIVE_TYPEMAP[t.name] || name
+				name = PRIMITIVE_TYPEMAP[t.name] || t.name
 				return t, name
 			end
 		end
@@ -358,7 +375,11 @@ class JavaGenerator < GeneratorModule
 						}
 					}]
 				end
+
+			elsif t.is_a?(IR::Enum)
+				return "#{to} = #{t.name}.enumOf(#{pac}.unpackInt());"
 			end
+
 			method = PRIMITIVE_UNPACK[t.name] || "unpack(#{t.name}.class)"
 			"#{to} = #{pac}.#{method};"
 		end
@@ -405,7 +426,11 @@ class JavaGenerator < GeneratorModule
 						}
 					}]
 				end
+
+			elsif t.is_a?(IR::Enum)
+				return "#{to} = #{t.name}.enumOf(#{obj}.asInt());"
 			end
+
 			method = PRIMITIVE_CONVERT[t.name] || "convert(new #{t.name}())"
 			"#{to} = #{obj}.#{method};"
 		end

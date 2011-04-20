@@ -15,6 +15,7 @@ Gem::Specification.new do |s|
     "AUTHORS",
      "README",
      "lib/msgpack/idl/lang/java.rb",
+     "lib/msgpack/idl/lang/java/client/application.java",
      "lib/msgpack/idl/lang/java/client/service_version.java",
      "lib/msgpack/idl/lang/java/message.java",
      "lib/msgpack/idl/lang/java/message_body.java",

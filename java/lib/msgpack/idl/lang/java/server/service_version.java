@@ -46,8 +46,13 @@ public class #{@name} implements Dispatcher {
 				public void dispatch(Request request) throws Exception {
 					A#{f.name} args = new A#{f.name}();
 					args.messageConvert(request.getArguments());
-					#{format_type(f.return_type)} r = #{f.name}(args);
-					request.sendResult(r);
+					<?rb if f.return_type.void_type? ?>
+						#{f.name}(args);
+						request.sendResult(null);
+					<?rb else ?>
+						#{format_type(f.return_type)} r = #{f.name}(args);
+						request.sendResult(r);
+					<?rb end ?>
 				}
 			});
 		<?rb } ?>

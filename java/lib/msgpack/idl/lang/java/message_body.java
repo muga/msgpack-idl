@@ -37,8 +37,8 @@ class #{@name}
 	<?rb end ?>
 
 	<?rb @message.new_fields.each {|f| ?>
-	public void set#{f.name.capitalize}(#{format_type(f.type)} value) {
-		this.#{f.name} = v;
+	public void set#{f.name.capitalize}(#{format_type(f.type)} #{f.name}) {
+		this.#{f.name} = #{f.name};
 	}
 	public #{format_type(f.type)} get#{f.name.capitalize}() {
 		return this.#{f.name};
@@ -60,7 +60,7 @@ class #{@name}
 		int len = pac.unpackArray();
 
 		if(len < #{@message.max_required_id}) {
-			throw new MessagePackObject("#{@message.name} requires at least #{@message.max_required_id} elements.");
+			throw new MessageTypeException("#{@message.name} requires at least #{@message.max_required_id} elements.");
 		}
 
 		<?rb 1.upto(@message.max_id) {|i| ?>

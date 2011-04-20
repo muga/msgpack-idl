@@ -5,7 +5,7 @@ import org.msgpack.rpc.Session;
 public class #{@name} implements Closeable {
 	private Session s;
 
-	public class #{@name}(Session s) {
+	public #{@name}(Session s) {
 		this.s = s;
 	}
 

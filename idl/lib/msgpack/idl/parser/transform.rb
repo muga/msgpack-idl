@@ -154,7 +154,6 @@ class ParsletTransform < Parslet::Transform
 	rule(:service_name => simple(:n),
 			 :service_version => simple(:v),
 			 :service_funcs => sequence(:fs)) {
-		v = v() ? v() : 0
 		AST::Service.new(n, v, fs)
 	}
 
