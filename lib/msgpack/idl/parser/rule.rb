@@ -147,17 +147,16 @@ class ParsletParser < Parslet::Parser
 	rule(:service) {
 		k_service >>
 			service_name.as(:service_name) >>
+			service_version.maybe.as(:service_version) >>
 		k_lwing >>
-			service_description.as(:service_versions) >>
+			func.repeat.as(:service_funcs) >>
 		k_rwing
 	}
 
-	rule(:service_description) {
-		(func | version_label).repeat.as(:service_description)
-	}
-
-	rule(:version_label) {
-		field_id
+	rule(:service_version) {
+		# terminal
+		space? >> str(':') >> space? >>
+			(str('0') | (match('[1-9]') >> match('[0-9]').repeat)).as(:val_int)
 	}
 
 	rule(:func) {
@@ -192,7 +191,8 @@ class ParsletParser < Parslet::Parser
 	}
 
 	rule(:scope) {
-		generic_type.as(:scope_type) >>
+		service_name.as(:scope_service) >>
+			service_version.as(:scope_service_version) >>
 		field_name.as(:scope_name) >>
 		k_default.maybe.as(:scope_default) >>
 		eol

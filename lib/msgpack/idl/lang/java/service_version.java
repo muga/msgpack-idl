@@ -9,5 +9,9 @@ import java.io.IOException;
 import org.msgpack.MessageTypeException;
 import org.msgpack.MessagePackObject;
 
-public #{format_message(@message, @message.name)}
+public abstract class #{@name} {
+	<?rb @functions.each {|f| ?>
+	public static #{format_message(f, "A#{f.name}")}
+	<?rb } ?>
+}
 

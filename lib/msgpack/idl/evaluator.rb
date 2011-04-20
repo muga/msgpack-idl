@@ -65,10 +65,13 @@ class Evaluator
 		@global_namespace = ""   # Namespace
 		@lang_namespace = {}     # lang:String => scope:Namespace
 
+		@services = []  # name:String => IR::Service
+
 		init_built_in
 
 		@ir_types = []
 		@ir_services = []
+		@ir_applications = []
 	end
 
 	def evaluate(ast)
@@ -110,16 +113,45 @@ class Evaluator
 			add_enum(e.name, fields)
 
 		when AST::Service
-			check_name(e.name, e)
-			versions = resolve_versions(e.name, e.versions)
-			add_service(e.name, versions)
+			s = check_service_version(e.name, e.version)
+			funcs = resolve_funcs(e.funcs)
+			v = e.version || 0
+			check_service_funcs(s, funcs, v) if s
+			add_service_version(s, e.name, v, funcs)
 
 		when AST::Application
 			check_name(e.name, e)
+			scopes = resolve_scopes(e.scopes)
+			add_application(e.name, scopes)
 
 		else
 			raise SemanticsError, "Unknown toplevel AST element `#{e.class}': #{e.inspect}"
 		end
+	end
+
+	def evaluate_inheritance
+		@services.each {|s|
+			super_versions = []
+			s.versions = s.versions.sort_by {|sv| sv.version }
+			s.versions.each do |sv|
+
+				sv.functions.each {|f|
+					f.super_version = nil
+					f.super_func = nil
+					super_versions.reverse_each do |ssv|
+						if sf = ssv.functions.find {|sf| sf.name == f.name }
+							f.super_version = ssv.version
+							f.super_func = sf
+							break
+						end
+					end
+				}
+
+				super_versions << sv
+			end
+		}
+		@ir_services = @services
+		self
 	end
 
 	def evaluate_spec(lang)
@@ -127,7 +159,8 @@ class Evaluator
 		ns = spec_namespace(lang)
 		types = spec_types(lang)
 		services = spec_services(lang)
-		IR::Spec.new(ns, types, services)
+		applications = spec_applications(lang)
+		IR::Spec.new(ns, types, services, applications)
 	end
 
 	private
@@ -145,6 +178,10 @@ class Evaluator
 
 	def spec_services(lang)
 		@ir_services
+	end
+
+	def spec_applications(lang)
+		@ir_applications
 	end
 
 	def check_name(name, e)
@@ -380,23 +417,33 @@ class Evaluator
 		return fields
 	end
 
-	def resolve_versions(service_name, versions)
-		used = []
-
-		versions = versions.map {|e|
-			if used[e.version]
-				raise DuplicatedNameError, "duplicated version #{e.version}"
-			end
-
-			used[e.version] = true
-
-			funcs = resolve_funcs(e.funcs)
-			IR::ServiceVersion.new(funcs, e.version)
-		}.sort_by {|v|
-			v.version
+	def check_service_version(name, version)
+		s = @services.find {|s|
+			s.name == name
 		}
+		if s
+			s.versions.each {|sv|
+				if sv.version == version
+					raise DuplicatedNameError, "duplicated version #{version}"
+				end
+			}
+		else
+			check_name(name, nil)
+		end
+		s
+	end
 
-		return versions
+	def check_service_funcs(s, funcs, v)
+		s.versions.each {|sv|
+			sv.functions.each {|f|
+				if nf = funcs.find {|x| f.name == x.name }
+					# TODO
+					#if f.args != nf.args
+					#	raise NameError, "same function name with different args: #{s.name}:#{sv.version},#{v} #{f.name}"
+					#end
+				end
+			}
+		}
 	end
 
 	def resolve_funcs(funcs)
@@ -416,7 +463,7 @@ class Evaluator
 				return_type = resolve_type(e.return_type)
 			end
 
-			IR::Function.new(e.name, return_type, args)
+			IR::Function.new(e.name, return_type, args, nil, nil)
 		}.sort_by {|f|
 			f.name
 		}
@@ -466,6 +513,51 @@ class Evaluator
 		return args
 	end
 
+	def resolve_scopes(scopes)
+		ds = scopes.find_all {|e|
+			e.default?
+		}
+		if ds.size > 1
+			raise DuplicatedNameError, "multiple default scope: #{ds.map {|e| e.name}.join(', ')}"
+		end
+
+		if	ds.empty?
+			default_scope = scopes.first.name
+		else
+			default_scope = ds.first.name
+		end
+
+		used_names = {}
+
+		scopes = scopes.map {|e|
+			if used_names[e.name]
+				raise DuplicatedNameError, "duplicated scope name: #{e.name}"
+			end
+
+			s = @services.find {|s|
+				s.name == e.service
+			}
+			unless s
+				raise NameNotFoundError, "no such service: #{e.name}"
+			end
+
+			sv = s.versions.find {|sv|
+				sv.version == e.version
+			}
+			unless sv
+				raise NameNotFoundError, "no such service version: #{e.service}:#{s.version}"
+			end
+
+			used_names[e.name] = true
+
+			default = default_scope == e.name
+
+			IR::Scope.new(e.name, s, e.version, default)
+		}
+
+		return scopes
+	end
+
 
 	def add_namespace(e)
 		if e.lang
@@ -496,10 +588,21 @@ class Evaluator
 		e
 	end
 
-	def add_service(name, versions)
-		s = IR::Service.new(name, versions)
-		@ir_services << s
-		s
+	def add_service_version(s, name, version, funcs)
+		sv = IR::ServiceVersion.new(version, funcs)
+		if s
+			s.versions << sv
+		else
+			s = IR::Service.new(name, [sv])
+			@services << s
+		end
+		sv
+	end
+
+	def add_application(name, scopes)
+		app = IR::Application.new(name, scopes)
+		@ir_applications << app
+		app
 	end
 
 

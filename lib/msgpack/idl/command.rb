@@ -72,6 +72,7 @@ pp ast
 
 ev = MessagePack::IDL::Evaluator.new
 ev.evaluate(ast)
+ev.evaluate_inheritance
 ir = ev.evaluate_spec(lang)
 pp ir
 

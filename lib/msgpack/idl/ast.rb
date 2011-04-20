@@ -94,19 +94,12 @@ module AST
 
 
 	class Service < Element
-		def initialize(name, versions)
+		def initialize(name, version, funcs)
 			@name = name
-			@versions = versions
-		end
-		attr_reader :name, :versions
-	end
-
-	class ServiceVersion < Element
-		def initialize(version, funcs)
 			@version = version
 			@funcs = funcs
 		end
-		attr_reader :version, :funcs
+		attr_reader :name, :version, :funcs
 	end
 
 	class Func < Element
@@ -131,12 +124,17 @@ module AST
 	end
 
 	class Scope < Element
-		def initialize(type, name, default)
-			@type = type
+		def initialize(service, version, name, default)
+			@service = service
+			@version = version
 			@name = name
 			@default = default
 		end
-		attr_reader :type, :name, :default
+		attr_reader :service, :version, :name, :default
+
+		def default?
+			@default
+		end
 	end
 
 

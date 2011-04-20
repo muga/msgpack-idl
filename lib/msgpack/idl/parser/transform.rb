@@ -152,18 +152,21 @@ class ParsletTransform < Parslet::Transform
 	}
 
 	rule(:service_name => simple(:n),
-			 :service_versions => sequence(:vs)) {
-		AST::Service.new(n, vs)
+			 :service_version => simple(:v),
+			 :service_funcs => sequence(:fs)) {
+		v = v() ? v() : 0
+		AST::Service.new(n, v, fs)
 	}
 
 
-	rule(:scope_type => simple(:t),
+	rule(:scope_service => simple(:s),
+			 :scope_service_version => simple(:v),
 			 :scope_name => simple(:n),
 			 :scope_default => simple(:d)) {
 		if d
-			AST::Scope.new(t, n, true)
+			AST::Scope.new(s, v, n, true)
 		else
-			AST::Scope.new(t, n, false)
+			AST::Scope.new(s, v, n, false)
 		end
 	}
 

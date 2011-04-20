@@ -33,8 +33,11 @@ class JavaGenerator < GeneratorModule
 	def generate!
 		gen_init
 		gen_messages
-		gen_servers
-		gen_clients
+		gen_services
+		gen_server_services
+		gen_server_applications
+		gen_client_services
+		gen_client_applications
 	end
 
 	def gen_init
@@ -45,19 +48,19 @@ class JavaGenerator < GeneratorModule
 	end
 
 	def gen_messages
-		ctx = Context.new(:package, :message, :name)
-		ctx.package = @ir.namespace
+		ctx = MessageContext.new(self, :namespace, :message, :name)
+		ctx.namespace = @ir.namespace
 
 		@ir.messages.each {|t|
 			ctx.message = t
 			ctx.name = t.name
-			render('message.java', ctx, "#{ctx.name}")
+			render_file('message.java', ctx, "#{ctx.name}")
 		}
 	end
 
-	def gen_servers
-		ctx = Context.new(:package, :service, :version, :functions, :name)
-		ctx.package = @ir.namespace + ['server']
+	def gen_services
+		ctx = ServiceVersionContext.new(self, :namespace, :service, :version, :functions, :name)
+		ctx.namespace = @ir.namespace
 
 		@ir.services.each {|s|
 			ctx.service = s
@@ -65,14 +68,41 @@ class JavaGenerator < GeneratorModule
 				ctx.version  = v.version
 				ctx.functions = v.functions
 				ctx.name = "#{s.name}_#{v.version}"
-				render('server.java', ctx, "server/#{ctx.name}")
+				render_file('service_version.java', ctx, "#{ctx.name}")
 			}
 		}
 	end
 
-	def gen_clients
-		ctx = Context.new(:package, :service, :version, :functions, :name)
-		ctx.package = @ir.namespace + ['client']
+	def gen_server_services
+		ctx = ServiceVersionContext.new(self, :namespace, :service, :version, :functions, :name)
+		ctx.namespace = @ir.namespace
+
+		@ir.services.each {|s|
+			ctx.service = s
+			s.versions.each {|v|
+				ctx.version  = v.version
+				ctx.functions = v.functions
+				ctx.name = "#{s.name}_#{v.version}"
+				render_file('server/service_version.java', ctx, "server/#{ctx.name}")
+			}
+		}
+	end
+
+	def gen_server_applications
+		ctx = ApplicationContext.new(self, :namespace, :name, :scopes, :default_scope)
+		ctx.namespace = @ir.namespace
+
+		@ir.applications.each {|app|
+			ctx.name = app.name
+			ctx.scopes = app.scopes
+			ctx.default_scope = app.default_scope
+			render_file('server/application.java', ctx, "server/#{ctx.name}")
+		}
+	end
+
+	def gen_client_services
+		ctx = ServiceVersionContext.new(self, :namespace, :service, :version, :functions, :name)
+		ctx.namespace = @ir.namespace
 
 		@ir.services.each {|s|
 			ctx.service = s
@@ -80,15 +110,21 @@ class JavaGenerator < GeneratorModule
 				ctx.version = v.version
 				ctx.functions = v.functions
 				ctx.name = "#{s.name}_#{v.version}"
-				render('client.java', ctx, "client/#{ctx.name}")
+				render_file('client/service_version.java', ctx, "client/#{ctx.name}")
 			}
 		}
 	end
 
-	private
-	def render(template_fname, ctx, fname)
+	def gen_client_applications
+	end
+
+	def render(template_fname, ctx)
 		template_path = File.join(@datadir, template_fname)
-		code = @engine.render(template_path, ctx)
+		@engine.render(template_path, ctx)
+	end
+
+	def render_file(template_fname, ctx, fname)
+		code = render(template_fname, ctx)
 		path = File.join(@pkgoutdir, fname) + '.java'
 		FileUtils.mkdir_p(File.dirname(path))
 		File.open(path, "w") {|f|
@@ -96,11 +132,20 @@ class JavaGenerator < GeneratorModule
 		}
 	end
 
+	def format_message(t, name = t.name)
+		ctx = MessageContext.new(self, :message, :name)
+		ctx.message = t
+		ctx.name = name
+		render('message_body.java', ctx)
+	end
+
 
 	class Context
 		include Tenjin::ContextHelper
 
-		def initialize(*member)
+		def initialize(gen, *member)
+			@gen = gen
+
 			(class << self; self; end).module_eval {
 				member.each {|m|
 					define_method("#{m}") {
@@ -113,12 +158,18 @@ class JavaGenerator < GeneratorModule
 			}
 		end
 
-		def format_package
-			if package.empty?
+		def format_package(*extra)
+			name = format_package_name(*extra)
+			if name.empty?
 				""
 			else
-				"package #{package.join('.')};"
+				"package #{name};"
 			end
+		end
+
+		def format_package_name(*extra)
+			package = namespace + extra
+			package.join('.')
 		end
 
 		PRIMITIVE_TYPEMAP = {
@@ -186,6 +237,12 @@ class JavaGenerator < GeneratorModule
 			format_parameterized_type(t, name)
 		end
 
+		def format_message(t, name = t.name)
+			@gen.format_message(t, name)
+		end
+	end
+
+	class MessageContext < Context
 		def format_type_impl(t)
 			t, name = format_nullable_type(t)
 			name = IFACE_CLASS_REMAP[name] || name
@@ -324,6 +381,15 @@ class JavaGenerator < GeneratorModule
 			method = PRIMITIVE_CONVERT[t.name] || "convert(new #{t.name}())"
 			"#{to} = #{obj}.#{method};"
 		end
+	end
+
+	class ServiceContext < Context
+	end
+
+	class ServiceVersionContext < ServiceContext
+	end
+
+	class ApplicationContext < ServiceContext
 	end
 end
 

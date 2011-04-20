@@ -21,17 +21,17 @@ module IDL
 
 module IR
 	class Spec
-		def initialize(namespace, messages, services)
+		def initialize(namespace, messages, services, applications)
 			@namespace = namespace
 			@messages = messages
 			@services = services
+			@applications = applications
 		end
 
 		attr_reader :namespace
 		attr_reader :messages
 		attr_reader :services
-		#attr_reader :servers
-		#attr_reader :clients
+		attr_reader :applications
 	end
 
 
@@ -287,33 +287,79 @@ module IR
 			@versions = versions
 		end
 		attr_reader :name, :versions
+		attr_writer :versions
+
+		def [](version)
+			@versions.find {|sv| sv.version == version }
+		end
+
+		def versions_upto(version)
+			@versions.each {|sv|
+				break if sv.version > version
+				yield sv
+			}
+		end
 	end
 
 	class ServiceVersion
-		def initialize(funcs, version)
-			@functions = funcs
+		def initialize(version, funcs)
 			@version = version
+			@functions = funcs
 		end
-		attr_reader :functions, :version
+		attr_reader :version, :functions
 	end
 
 	class Function
-		def initialize(name, return_type, args)
+		def initialize(name, return_type, args, super_version, super_func)
 			@name = name
 			@return_type = return_type
 			@args = args
+			@super_version = super_version
+			@super_func = super_func
 			@max_id = @args.map {|a| a.id }.max || 0
-			@max_id = @args.select {|a| a.required? }.map {|a| a.id }.max || 0
+			@max_required_id = @args.select {|a| a.required? }.map {|a| a.id }.max || 0
 		end
 		attr_reader :name, :return_type, :args
-		attr_reader :max_id
+		attr_reader :super_version, :super_func
+		attr_reader :max_id, :max_required_id
+		attr_writer :super_version, :super_func
 
 		def super_class; nil; end
 		alias new_fields args
 		alias all_fields args
+
+		def [](id)
+			@args.find {|a| a.id == id }
+		end
 	end
 
 	class Argument < Field
+	end
+
+	class Application
+		def initialize(name, scopes)
+			@name = name
+			@scopes = scopes
+		end
+		attr_reader :name, :scopes
+
+		def default_scope
+			@scopes.find {|c| c.default_scope? }
+		end
+	end
+
+	class Scope
+		def initialize(name, service, version, default)
+			@name = name
+			@service = service
+			@version = version
+			@default = default
+		end
+		attr_reader :name, :service, :version
+
+		def default_scope?
+			@default
+		end
 	end
 end
 
