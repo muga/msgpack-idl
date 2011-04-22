@@ -29,6 +29,8 @@ Usage: #{prog} [options] -g LANG files...
 options:
 EOF
 
+op.summary_indent = "  "
+
 comment = <<EOF
 examples:
   - generate java code from test.msgspec file:
@@ -36,7 +38,7 @@ examples:
       $ ls gen-java  # generated codes are here
 
   - generate java code from test.msgspec file to ./out directory:
-      $ #{prog} -g java -o out test.msgspec
+      $ #{prog} -g java -o ./out test.msgspec
 
   - install or update language module
       $ #{prog} --update java
