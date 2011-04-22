@@ -82,15 +82,15 @@ op.on('--update', 'install or update a language module') {
 	cmd = :update
 }
 
-op.on('--list', 'show list of available language modules') {
+op.on('--list', 'show list of installed language modules') {
 	cmd = :list
 }
 
-op.on_tail('--help', 'show this message') {
+op.on('--help', 'show this message') {
 	usage nil
 }
 
-op.on_tail('--version', 'show version') {
+op.on('--version', 'show version') {
 	require 'msgpack/idl/version'
 	puts MessagePack::IDL::VERSION
 	exit 0
@@ -178,13 +178,14 @@ when :update
 
 when :list
 	list = []
-	dirs = Gem.all_load_paths.grep("msgpack-idl")
-	dirs.each {|dir|
-		path = File.join(dir, "msgpack/idl/lang")
-		if File.directory?(path)
-			list.concat Dir.entries(path)
-		end
+	langdir = File.join('lib', 'msgpack', 'idl', 'lang')
+	Gem.path.each {|gemdir|
+		pattern = File.join(gemdir, 'gems', 'msgpack-idl-*', 'lib', 'msgpack', 'idl', 'lang', '*.rb')
+		Dir.glob(pattern).each {|path|
+			list << File.basename(path, '.rb')
+		}
 	}
+	list = list.sort.uniq
 
 	puts "available language modules:"
 	list.each {|lang|
