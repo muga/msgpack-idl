@@ -365,27 +365,36 @@ class JavaGenerator < GeneratorModule
 			if t.parameterized_type?
 				if t.list_type?
 					e = t.type_params[0]
+					anon_id = next_anon_id
+					vn = "n#{anon_id}"
+					ve = "e#{anon_id}"
+					vi = "i#{anon_id}"
 					return %[{
 						#{to} = new #{format_type_impl(t)}();
-						int n = #{pac}.unpackArray();
-						#{format_type(e)} e;
-						for(int i=0; i < n; i++) {
-							#{format_unpack("e", pac, e)}
-							#{to}.add(e);
+						int #{vn} = #{pac}.unpackArray();
+						#{format_type(e)} #{ve};
+						for(int #{vi}=0; #{vi} < #{vn}; #{vi}++) {
+							#{format_unpack("#{ve}", pac, e)}
+							#{to}.add(#{ve});
 						}
 					}]
 				elsif t.map_type?
+					anon_id = next_anon_id
 					k = t.type_params[0]
 					v = t.type_params[1]
+					vn = "n#{anon_id}"
+					vk = "k#{anon_id}"
+					vv = "v#{anon_id}"
+					vi = "i#{anon_id}"
 					return %[{
 						#{to} = new #{format_type_impl(t)}();
-						int n = #{pac}.unpackMap();
-						#{format_type(k)} k;
-						#{format_type(v)} v;
-						for(int i=0; i < n; i++) {
-							#{format_unpack("k", pac, k)}
-							#{format_unpack("v", pac, v)}
-							#{to}.put(k, v);
+						int #{vn} = #{pac}.unpackMap();
+						#{format_type(k)} #{vk};
+						#{format_type(v)} #{vv};
+						for(int #{vi}=0; #{vi} < #{vn}; #{vi}++) {
+							#{format_unpack("#{vk}", pac, k)}
+							#{format_unpack("#{vv}", pac, v)}
+							#{to}.put(#{vk}, #{vv});
 						}
 					}]
 				end
@@ -422,25 +431,32 @@ class JavaGenerator < GeneratorModule
 			if t.parameterized_type?
 				if t.list_type?
 					e = t.type_params[0]
+					anon_id = next_anon_id
+					ve = "e#{anon_id}"
+					vo = "o#{anon_id}"
 					return %[{
 						#{to} = new #{format_type_impl(t)}();
-						#{format_type(e)} e;
-						for(MessagePackObject o : #{obj}.asArray()) {
-							#{format_convert("e", "o", e)}
-							#{to}.add(e);
+						#{format_type(e)} #{ve};
+						for(MessagePackObject #{vo} : #{obj}.asArray()) {
+							#{format_convert("#{ve}", "#{vo}", e)}
+							#{to}.add(#{ve});
 						}
 					}]
 				elsif t.map_type?
 					k = t.type_params[0]
 					v = t.type_params[1]
+					anon_id = next_anon_id
+					vk = "k#{anon_id}"
+					vv = "v#{anon_id}"
+					vkv = "kv#{anon_id}"
 					return %[{
 						#{to} = new #{format_type_impl(t)}();
-						#{format_type(k)} k;
-						#{format_type(v)} v;
-						for(Map.Entry<MessagePackObject,MessagePackObject> kv : #{obj}.asMap().entrySet()) {
-							#{format_convert("k", "kv.getKey()", k)}
-							#{format_convert("v", "kv.getValue()", v)}
-							#{to}.put(k, v);
+						#{format_type(k)} #{vk};
+						#{format_type(v)} #{vv};
+						for(Map.Entry<MessagePackObject,MessagePackObject> #{vkv} : #{obj}.asMap().entrySet()) {
+							#{format_convert("#{vk}", "#{vkv}.getKey()", k)}
+							#{format_convert("#{vv}", "#{vkv}.getValue()", v)}
+							#{to}.put(#{vk}, #{vv});
 						}
 					}]
 				end
@@ -455,6 +471,11 @@ class JavaGenerator < GeneratorModule
 
 			method = PRIMITIVE_CONVERT[t.name] || "convert(new #{t.name}())"
 			"#{to} = #{obj}.#{method};"
+		end
+
+		def next_anon_id
+			@anon_id ||= -1
+			@anon_id += 1
 		end
 
 		def format_message_class(s, version)
