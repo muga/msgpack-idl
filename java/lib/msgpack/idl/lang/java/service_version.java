@@ -15,7 +15,12 @@ import org.msgpack.MessageConvertable;
 
 public abstract class #{@name} {
 	<?rb @functions.each {|f| ?>
-	public static #{format_message(f, "A#{f.name}")}
+		<?rb if f.super_version  # FIXME ?>
+			public static class A#{f.name} extends #{@service.name}_#{f.super_version}.A#{f.name} {
+			}
+		<?rb else ?>
+			public static #{format_message(f, "A#{f.name}")}
+		<?rb end ?>
 	<?rb } ?>
 }
 

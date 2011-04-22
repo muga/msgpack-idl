@@ -9,7 +9,7 @@ Gem::Specification.new do |s|
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["FURUHASHI Sadayuki"]
-  s.date = %q{2011-04-20}
+  s.date = %q{2011-04-23}
   s.email = %q{frsyuki@users.sourceforge.jp}
   s.files = [
     "AUTHORS",
@@ -17,6 +17,7 @@ Gem::Specification.new do |s|
      "lib/msgpack/idl/lang/java.rb",
      "lib/msgpack/idl/lang/java/client/application.java",
      "lib/msgpack/idl/lang/java/client/service_version.java",
+     "lib/msgpack/idl/lang/java/enum.java",
      "lib/msgpack/idl/lang/java/message.java",
      "lib/msgpack/idl/lang/java/message_body.java",
      "lib/msgpack/idl/lang/java/server/application.java",

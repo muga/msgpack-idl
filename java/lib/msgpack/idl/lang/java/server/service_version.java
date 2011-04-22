@@ -6,7 +6,7 @@ import java.io.IOException;
 import org.msgpack.MessageTypeException;
 import org.msgpack.rpc.dispatcher.Dispatcher;
 import org.msgpack.rpc.Request;
-import static #{format_package_name}.#{@name}.*;
+import static #{@message_class}.*;
 
 public class #{@name} implements Dispatcher {
 	<?rb @functions.each {|f| ?>

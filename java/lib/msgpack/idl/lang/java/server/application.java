@@ -24,6 +24,27 @@ public class #{@name} implements Dispatcher {
 		<?rb } ?>
 	<?rb } ?>
 
+	<?rb @scopes.each {|c| ?>
+		<?rb s = c.service ?>
+		<?rb s.versions_upto(c.version) {|sv| ?>
+			<?rb sv.functions.each {|f| ?>
+				private class Default_#{s.name}_#{sv.version}_#{f.name} implements #{s.name}_#{sv.version}.I#{f.name} {
+					public #{format_type(f.return_type)} #{f.name}(#{format_message_class(s, sv.version)}.A#{f.name} args) {
+						<?rb if f.super_version ?>
+							<?rb if f.return_type.void_type? ?>
+								#{@name}.this.#{c.name}_#{f.super_version}.get#{f.name.capitalize}().#{f.name}(args);
+							<?rb else ?>
+								return #{@name}.this.#{c.name}_#{f.super_version}.get#{f.name.capitalize}().#{f.name}(args);
+							<?rb end ?>
+						<?rb else ?>
+							throw new RPCError(".NotImplemented");  // TODO
+						<?rb end ?>
+					}
+				}
+			<?rb } ?>
+		<?rb } ?>
+	<?rb } ?>
+
 	private HashMap<String, Dispatcher> scopeDispatchTable;
 
 	public #{@name}() {
@@ -46,17 +67,7 @@ public class #{@name} implements Dispatcher {
 		<?rb s.versions_upto(c.version) {|sv| ?>
 
 			<?rb sv.functions.each {|f| ?>
-				<?rb if f.super_version ?>
-					this.#{c.name}_#{sv.version}.set#{f.name.capitalize}(new #{s.name}_#{sv.version}.I#{f.name}() {
-						public #{format_type(f.return_type)} #{f.name}(A#{f.name} args) {
-							<?rb if f.return_type.void_type? ?>
-							#{c.name}_#{f.super_version}.get#{f.name.capitalize}(args);
-							<?rb else ?>
-							return #{c.name}_#{f.super_version}.get#{f.name.capitalize}(args);
-							<?rb end ?>
-						}
-					});
-				<?rb end ?>
+				this.#{c.name}_#{sv.version}.set#{f.name.capitalize}(new Default_#{s.name}_#{sv.version}_#{f.name}());
 			<?rb } ?>
 
 		<?rb } ?>

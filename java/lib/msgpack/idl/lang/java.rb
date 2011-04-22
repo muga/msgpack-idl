@@ -90,7 +90,7 @@ class JavaGenerator < GeneratorModule
 	end
 
 	def gen_server_services
-		ctx = Context.new(self, :namespace, :service, :version, :functions, :name)
+		ctx = Context.new(self, :namespace, :service, :version, :functions, :name, :message_class)
 		ctx.namespace = @ir.namespace
 
 		@ir.services.each {|s|
@@ -99,6 +99,7 @@ class JavaGenerator < GeneratorModule
 				ctx.version  = v.version
 				ctx.functions = v.functions
 				ctx.name = "#{s.name}_#{v.version}"
+				ctx.message_class = (@ir.namespace + ["#{s.name}_#{v.version}"]).join('.')
 				render_file('server/service_version.java', ctx, "server/#{ctx.name}")
 			}
 		}
@@ -122,7 +123,7 @@ class JavaGenerator < GeneratorModule
 	end
 
 	def gen_client_services
-		ctx = Context.new(self, :namespace, :service, :version, :functions, :name)
+		ctx = Context.new(self, :namespace, :service, :version, :functions, :name, :message_class)
 		ctx.namespace = @ir.namespace
 
 		@ir.services.each {|s|
@@ -131,11 +132,14 @@ class JavaGenerator < GeneratorModule
 				ctx.version = v.version
 				ctx.functions = v.functions
 				ctx.name = "#{s.name}_#{v.version}"
+				ctx.message_class = (@ir.namespace + ["#{s.name}_#{v.version}"]).join('.')
 				render_file('client/service_version.java', ctx, "client/#{ctx.name}")
 			}
+			v = s.versions.last
 			ctx.version = nil
-			ctx.functions = s.versions.last.functions
+			ctx.functions = v.functions
 			ctx.name = "#{s.name}"
+			ctx.message_class = (@ir.namespace + ["#{s.name}_#{v.version}"]).join('.')
 			render_file('client/service_version.java', ctx, "client/#{ctx.name}")
 		}
 	end
@@ -451,6 +455,10 @@ class JavaGenerator < GeneratorModule
 
 			method = PRIMITIVE_CONVERT[t.name] || "convert(new #{t.name}())"
 			"#{to} = #{obj}.#{method};"
+		end
+
+		def format_message_class(s, version)
+			(namespace + ["#{s.name}_#{version}"]).join('.')
 		end
 	end
 end
