@@ -31,14 +31,12 @@ file VERSION_FILE => ["VERSION"] do |t|
 	File.open(VERSION_FILE, "w") {|f|
 		f.write <<EOF
 module MessagePack
-module RPC
 module IDL
 module Lang
 module Java
 
 VERSION = '#{version}'
 
-end
 end
 end
 end
