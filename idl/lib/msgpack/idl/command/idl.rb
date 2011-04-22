@@ -39,16 +39,16 @@ examples:
       $ #{prog} -g java -o out test.msgspec
 
   - install or update language module
-      $ msgpack-idl --update java
+      $ #{prog} --update java
 
   - show examples
-      $ msgpack-idl --example # show list of examples
-      $ msgpack-idl --example "types"
+      $ #{prog} --example # show list of examples
+      $ #{prog} --example "types"
 
   - generate sample code
-      $ msgpack-idl --update java
-      $ msgpack-idl --example sample > sample.msgspec
-      $ msgpack-idl -g java sample.msgspec
+      $ #{prog} --install java
+      $ #{prog} --example sample > sample.msgspec
+      $ #{prog} -g java sample.msgspec
 EOF
 
 (class<<self;self;end).module_eval do

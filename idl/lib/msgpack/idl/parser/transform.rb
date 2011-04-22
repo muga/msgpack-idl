@@ -18,6 +18,11 @@
 module MessagePack
 module IDL
 
+if defined?(RUBY_VERSION) && RUBY_VERSION >= "1.9.0" && RUBY_VERSION < "1.9.2"
+	class Parslet::Pattern::Context
+		AST = MessagePack::IDL::AST
+	end
+end
 
 class ParsletTransform < Parslet::Transform
 	rule(:sequence_x => simple(:x)) {
