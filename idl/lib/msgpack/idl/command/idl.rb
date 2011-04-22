@@ -86,8 +86,14 @@ op.on('--list', 'show list of available language modules') {
 	cmd = :list
 }
 
-op.on_tail('-h', '--help', 'show this message') {
+op.on_tail('--help', 'show this message') {
 	usage nil
+}
+
+op.on_tail('--version', 'show version') {
+	require 'msgpack/idl/version'
+	puts MessagePack::IDL::VERSION
+	exit 0
 }
 
 op.on('-g', '--lang LANG', 'output language') {|s|
@@ -198,6 +204,7 @@ when :generate
 	files = ARGV
 
 	require 'parslet'
+	require 'msgpack/idl/version'
 	require 'msgpack/idl/module'
 	require 'msgpack/idl/error'
 	require 'msgpack/idl/ast'

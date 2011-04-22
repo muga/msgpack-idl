@@ -16,6 +16,8 @@ begin
 		gemspec.require_paths = ["lib"]
 		gemspec.test_files = Dir["test/test_*.rb"]
 		gemspec.files = Dir["lib/**/*", "ext/**/*", "test/**/*", "spec/**/*", "tasks/**/*"] + %w[AUTHORS ChangeLog README]
+		gemspec.executables = ['msgpack-idl']
+		gemspec.default_executable = 'msgpack-idl'
 		gemspec.add_development_dependency('rspec')
 	end
 	Jeweler::GemcutterTasks.new
@@ -30,12 +32,10 @@ file VERSION_FILE => ["VERSION"] do |t|
 	File.open(VERSION_FILE, "w") {|f|
 		f.write <<EOF
 module MessagePack
-module RPC
 module IDL
 
 VERSION = '#{version}'
 
-end
 end
 end
 EOF
