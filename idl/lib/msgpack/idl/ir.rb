@@ -220,6 +220,10 @@ module IR
 			@int = int
 		end
 		attr_reader :int
+
+		def ==(o)
+			o.class == IntValue && @int == o.int
+		end
 	end
 
 	class EnumValue < Value
@@ -228,9 +232,18 @@ module IR
 			@field = field
 		end
 		attr_reader :enum, :field
+
+		def ==(o)
+			# TODO
+			o.class == EnumValue && @enum.name == o.enum.name && @field.id == o.field.id
+		end
 	end
 
 	class EmptyValue < Value
+		def ==(o)
+			# TODO
+			o.class == EmptyValue
+		end
 	end
 
 	class Message < Type
@@ -240,7 +253,7 @@ module IR
 			@new_fields = new_fields
 
 			if super_class
-				@all_fields = super_class.all_fields + new_fields
+				@all_fields = (super_class.all_fields + new_fields).sort_by {|f| f.id }
 			else
 				@all_fields = new_fields
 			end
@@ -276,6 +289,11 @@ module IR
 
 		def optional?
 			@option == FIELD_OPTIONAL
+		end
+
+		def ==(o)
+			o.class == self.class && @id == o.id && @type == o.type &&
+				@name == o.name && @option == o.option && @value == o.value
 		end
 	end
 

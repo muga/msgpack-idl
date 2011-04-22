@@ -115,7 +115,6 @@ class Evaluator
 			v = e.version || 0
 			s = check_service_version(e.name, v)
 			funcs = resolve_funcs(e.funcs)
-			check_service_funcs(s, funcs, v) if s
 			add_service_version(s, e.name, v, funcs)
 
 		when AST::Application
@@ -139,8 +138,10 @@ class Evaluator
 					f.super_func = nil
 					super_versions.reverse_each do |ssv|
 						if sf = ssv.functions.find {|sf| sf.name == f.name }
-							f.super_version = ssv.version
-							f.super_func = sf
+							if f.args == sf.args && f.return_type == sf.return_type
+								f.super_version = ssv.version
+								f.super_func = sf
+							end
 							break
 						end
 					end
@@ -237,12 +238,13 @@ class Evaluator
 	def resolve_fields(fields, super_message)
 		used_ids = []
 		used_names = {}
-		super_max_id = 0
+		super_used_names = {}
+		super_used_ids = []
 
 		if super_message
-			super_max_id = super_message.max_id
 			super_message.all_fields.each {|f|
-				used_names[f] = true
+				super_used_ids[f.id] = true
+				super_used_names[f.name] = true
 			}
 		end
 
@@ -259,8 +261,11 @@ class Evaluator
 			if used_names[e.name]
 				raise DuplicatedNameError, "duplicated field name: #{e.name}"
 			end
-			if e.id < super_max_id
-				raise InheritanceError, "field id #{e.is} is smaller than max field id of the super class"
+			if super_used_ids[e.id]
+				raise InheritanceError, "field id is duplicated with super class: #{e.is}"
+			end
+			if super_used_names[e.name]
+				raise InheritanceError, "field name is duplicated with super class: #{e.name}"
 			end
 
 			used_ids[e.id] = e.name
@@ -303,23 +308,23 @@ class Evaluator
 	}
 
 	def resolve_initial_value(type, e)
-		if e.is_a?(ConstLiteral)
+		if e.is_a?(AST::ConstLiteral)
 			e = BUILT_IN_LITERAL[e.name] || e
 		end
 		v = case e
-		when NilLiteral
+		when AST::NilLiteral
 			IR::NilValue.nil
 
-		when TrueLiteral
+		when AST::TrueLiteral
 			IR::BoolValue.true
 
-		when FalseLiteral
+		when AST::FalseLiteral
 			IR::BoolValue.false
 
-		when IntLiteral
+		when AST::IntLiteral
 			IR::IntValue.new(e.value)
 
-		when EnumLiteral
+		when AST::EnumLiteral
 			enum = resolve_type(e.name)
 			if !enum.is_a?(IR::Enum)
 				raise NameNotFoundError, "not a enum type: #{e.name}"
@@ -332,7 +337,7 @@ class Evaluator
 			end
 			IR::EnumValue.new(enum, f)
 
-		when ConstLiteral
+		when AST::ConstLiteral
 			raise NameNotFoundError, "unknown constant: #{name}"
 
 		else
@@ -430,19 +435,6 @@ class Evaluator
 			check_name(name, nil)
 		end
 		s
-	end
-
-	def check_service_funcs(s, funcs, v)
-		s.versions.each {|sv|
-			sv.functions.each {|f|
-				if nf = funcs.find {|x| f.name == x.name }
-					# TODO
-					#if f.args != nf.args
-					#	raise NameError, "same function name with different args: #{s.name}:#{sv.version},#{v} #{f.name}"
-					#end
-				end
-			}
-		}
 	end
 
 	def resolve_funcs(funcs)

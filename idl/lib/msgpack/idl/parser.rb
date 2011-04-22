@@ -58,7 +58,7 @@ class Parser
 	protected
 	def parse_include(inc, dir, fname)
 		if dir
-			search_paths = @search_paths + [dir]
+			search_paths = @search_paths + [File.expand_path(dir)]
 		else
 			search_paths = @search_paths
 		end

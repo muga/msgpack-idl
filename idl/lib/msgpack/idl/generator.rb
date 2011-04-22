@@ -40,6 +40,10 @@ class Generator
 	def initialize
 	end
 
+	def self.available?(lang)
+		GENERATORS.has_key?(lang)
+	end
+
 	def generate(lang, ir, outdir)
 		gen = GENERATORS[lang]
 		unless gen
