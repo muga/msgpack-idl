@@ -30,11 +30,11 @@ public class #{@name} implements Dispatcher {
 			<?rb sv.functions.each {|f| ?>
 				private class Default_#{s.name}_#{sv.version}_#{f.name} implements #{s.name}_#{sv.version}.I#{f.name} {
 					public #{format_type(f.return_type)} #{f.name}(#{format_message_class(s, sv.version)}.A#{f.name} args) {
-						<?rb if f.super_version ?>
+						<?rb if f.inherited? ?>
 							<?rb if f.return_type.void_type? ?>
-								#{@name}.this.#{c.name}_#{f.super_version}.get#{f.name.capitalize}().#{f.name}(args);
+								#{@name}.this.#{c.name}_#{f.inherit_version}.get#{f.name.capitalize}().#{f.name}(args);
 							<?rb else ?>
-								return #{@name}.this.#{c.name}_#{f.super_version}.get#{f.name.capitalize}().#{f.name}(args);
+								return #{@name}.this.#{c.name}_#{f.inherit_version}.get#{f.name.capitalize}().#{f.name}(args);
 							<?rb end ?>
 						<?rb else ?>
 							throw new RPCError(".NotImplemented");  // TODO

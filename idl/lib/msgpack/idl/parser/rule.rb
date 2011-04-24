@@ -149,7 +149,7 @@ class ParsletParser < Parslet::Parser
 			service_name.as(:service_name) >>
 			service_version.maybe.as(:service_version) >>
 		k_lwing >>
-			func.repeat.as(:service_funcs) >>
+			service_def.repeat.as(:service_funcs) >>
 		k_rwing
 	}
 
@@ -157,6 +157,19 @@ class ParsletParser < Parslet::Parser
 		# terminal
 		space? >> str(':') >> space? >>
 			(str('0') | (match('[1-9]') >> match('[0-9]').repeat)).as(:val_int)
+	}
+
+	rule(:service_def) {
+		inherit | func
+	}
+
+	rule(:inherit) {
+		k_inherit >>
+		(
+			k_asterisk.as(:inherit_all) |
+			func.as(:inherit_func) |
+			func_name.as(:inherit_name)
+		)
 	}
 
 	rule(:func) {
@@ -167,6 +180,10 @@ class ParsletParser < Parslet::Parser
 		k_rparen >>
 		throws_classes.maybe.as(:func_throws) >>
 		eol
+	}
+
+	rule(:func_modifier) {
+		k_obsolete.as(:val_obsolete)
 	}
 
 	sequence :func_args_seq, :k_comma, :field_element
@@ -395,6 +412,7 @@ class ParsletParser < Parslet::Parser
 	keyword('application')
 	keyword('optional')
 	keyword('required')
+	keyword('inherit')
 	keyword('obsolete')
 	keyword('throws')
 	keyword('default')
@@ -420,6 +438,7 @@ class ParsletParser < Parslet::Parser
 	separator('!', :k_bang)
 	separator('?', :k_question)
 	separator('.', :k_dot)
+	separator('*', :k_asterisk)
 
 	LINE_HEAD_FORMAT = " % 4d: "
 	LINE_HEAD_SIZE = (LINE_HEAD_FORMAT % 0).size

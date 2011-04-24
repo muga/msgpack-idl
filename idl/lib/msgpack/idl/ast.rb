@@ -94,12 +94,35 @@ module AST
 
 
 	class Service < Element
-		def initialize(name, version, funcs)
+		def initialize(name, version, functions)
 			@name = name
 			@version = version
-			@funcs = funcs
+			@functions = functions
 		end
-		attr_reader :name, :version, :funcs
+		attr_reader :name, :version, :functions
+	end
+
+	class Inherit < Element
+	end
+
+	class InheritAll < Inherit
+	end
+
+	class InheritName < Inherit
+		def initialize(name)
+			@name = name
+		end
+		attr_reader :name
+	end
+
+	class InheritFunc < Inherit
+		def initialize(name, return_type, args, exceptions)
+			@name = name
+			@return_type = return_type
+			@args = args
+			@exceptions = exceptions
+		end
+		attr_reader :name, :return_type, :args, :exceptions
 	end
 
 	class Func < Element

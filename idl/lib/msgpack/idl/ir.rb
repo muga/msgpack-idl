@@ -342,29 +342,44 @@ module IR
 			@functions = funcs
 		end
 		attr_reader :version, :functions
+		attr_writer :functions
 	end
 
 	class Function
-		def initialize(name, return_type, args, super_version, super_func)
+		def initialize(name, return_type, args, exceptions)
 			@name = name
 			@return_type = return_type
 			@args = args
-			@super_version = super_version
-			@super_func = super_func
+			@exceptions = exceptions
 			@max_id = @args.map {|a| a.id }.max || 0
 			@max_required_id = @args.select {|a| a.required? }.map {|a| a.id }.max || 0
 		end
-		attr_reader :name, :return_type, :args
-		attr_reader :super_version, :super_func
+		attr_reader :name, :return_type, :args, :exceptions
 		attr_reader :max_id, :max_required_id
-		attr_writer :super_version, :super_func
 
 		def super_class; nil; end
 		alias new_fields args
 		alias all_fields args
 
+		def inherited?
+			false
+		end
+
 		def [](id)
 			@args.find {|a| a.id == id }
+		end
+	end
+
+	class InheritedFunction < Function
+		def initialize(inherit_version, inherit_func)
+			super(inherit_func.name, inherit_func.return_type, inherit_func.args, inherit_func.exceptions)
+			@inherit_version = inherit_version
+			@inherit_func = inherit_func
+		end
+		attr_reader :inherit_version, :inherit_func
+
+		def inherited?
+			true
 		end
 	end
 

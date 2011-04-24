@@ -136,24 +136,16 @@ class ParsletTransform < Parslet::Transform
 		AST::Func.new(n, rt, a, ex)
 	}
 
-	rule(:service_description => sequence(:s)) {
-		current = AST::ServiceVersion.new(0, [])
-		versions = [current]
-		s.each {|l|
-			case l
-			when Integer
-				v = versions.find {|v| v.version == l }
-				if v
-					current = v
-				else
-					current = AST::ServiceVersion.new(l, [])
-					versions << current
-				end
-			else
-				current.funcs << l
-			end
-		}
-		versions
+	rule(:inherit_all => simple(:_)) {
+		AST::InheritAll.new
+	}
+
+	rule(:inherit_name => simple(:n)) {
+		AST::InheritName.new(n)
+	}
+
+	rule(:inherit_func => simple(:f)) {
+		AST::InheritFunc.new(f.name, f.return_type, f.args, f.exceptions)
 	}
 
 	rule(:service_name => simple(:n),

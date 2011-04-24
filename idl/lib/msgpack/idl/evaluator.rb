@@ -55,6 +55,28 @@ class Evaluator
 		end
 	end
 
+	class InheritAllMark
+		def name
+			""
+		end
+	end
+
+	class InheritMark
+		def initialize(name)
+			@name = name
+		end
+		attr_reader :name
+	end
+
+	class InheritMarkWithCheck < InheritMark
+		def initialize(func)
+			super(func.name)
+			@func = func
+		end
+		attr_reader :func
+	end
+
+
 	def initialize
 		@names = {}  # name:String => AST::Element
 
@@ -114,7 +136,7 @@ class Evaluator
 		when AST::Service
 			v = e.version || 0
 			s = check_service_version(e.name, v)
-			funcs = resolve_funcs(e.funcs)
+			funcs = resolve_service_partial(e.functions)
 			add_service_version(s, e.name, v, funcs)
 
 		when AST::Application
@@ -129,23 +151,65 @@ class Evaluator
 
 	def evaluate_inheritance
 		@services.each {|s|
-			super_versions = []
 			s.versions = s.versions.sort_by {|sv| sv.version }
+
+			super_versions = []
 			s.versions.each do |sv|
 
+				real_functions = []
 				sv.functions.each {|f|
-					f.super_version = nil
-					f.super_func = nil
-					super_versions.reverse_each do |ssv|
-						if sf = ssv.functions.find {|sf| sf.name == f.name }
-							if f.args == sf.args && f.return_type == sf.return_type
-								f.super_version = ssv.version
-								f.super_func = sf
-							end
-							break
+					case f
+					when InheritAllMark
+						if super_versions.empty?
+							raise InheritanceError, "inherit all on the oldest version is invalid: #{s.name}:#{sv.version}"
 						end
+						last = super_versions.last
+						last.functions.each {|ifunc|
+							real_functions << IR::InheritedFunction.new(last.version, ifunc)
+						}
+
+					when InheritMark
+						if super_versions.empty?
+							raise InheritanceError, "inherit all on the oldest version is invalid: #{s.name}:#{sv.version}"
+						end
+						inherit_func = nil
+						inherit_version = nil
+						super_versions.reverse_each do |ssv|
+							inherit_func = ssv.functions.find {|ifunc| f.name == ifunc.name }
+							if inherit_func
+								inherit_version = ssv.version
+								break
+							end
+						end
+
+						unless inherit_func
+							raise InheritanceError, "no such function at service `#{s.name}': #{f.name}"
+						end
+
+						if f.is_a?(InheritMarkWithCheck)
+							if inherit_func.args != f.func.args ||
+									inherit_func.return_type != f.func.return_type ||
+									inherit_func.exceptions != f.func.exceptions
+								raise InheritanceError, "signature not matched at service `#{s.name}': #{f.name}"
+							end
+						end
+
+						real_functions << IR::InheritedFunction.new(inherit_version, inherit_func)
+
+					when IR::Function
+						real_functions << f
+
+					else
+						raise "unknown partially evaluated function: #{f.inspect}"
 					end
 				}
+
+				if real_functions.uniq!
+					# may be caused by InheritAllMark
+					# FIXME show warning?
+				end
+
+				sv.functions = real_functions
 
 				super_versions << sv
 			end
@@ -437,29 +501,58 @@ class Evaluator
 		s
 	end
 
-	def resolve_funcs(funcs)
+	def resolve_service_partial(funcs)
 		used_names = {}
 
 		funcs = funcs.map {|e|
-			if used_names[e.name]
-				raise DuplicatedNameError, "duplicated function name: #{e.name}"
-			end
+			case e
+			when AST::InheritAll
+				InheritAllMark.new
 
-			used_names[e.name] = true
+			when AST::InheritName, AST::InheritFunc
+				if used_names[e.name]
+					raise DuplicatedNameError, "duplicated function name: #{e.name}"
+				end
+				used_names[e.name] = true
 
-			args = resolve_args(e.args)
-			if e.return_type.name == "void"
-				return_type = IR::Primitive.void
+				if e.is_a?(AST::InheritFunc)
+					func = resolve_func(e)
+					InheritMarkWithCheck.new(func)
+				else
+					InheritMark.new(e.name)
+				end
+
+			when AST::Func
+				if used_names[e.name]
+					raise DuplicatedNameError, "duplicated function name: #{e.name}"
+				end
+				used_names[e.name] = true
+
+				resolve_func(e)
+
 			else
-				return_type = resolve_type(e.return_type)
+				raise SemanticsError, "Unknown service body AST element `#{e.class}': #{e.inspect}"
 			end
 
-			IR::Function.new(e.name, return_type, args, nil, nil)
 		}.sort_by {|f|
 			f.name
 		}
 
 		return funcs
+	end
+
+	def resolve_func(e)
+		args = resolve_args(e.args)
+
+		if e.return_type.name == "void"
+			return_type = IR::Primitive.void
+		else
+			return_type = resolve_type(e.return_type)
+		end
+
+		exceptions = resolve_exceptions(e.exceptions)
+
+		IR::Function.new(e.name, return_type, args, exceptions)
 	end
 
 	def resolve_args(args)
@@ -502,6 +595,11 @@ class Evaluator
 		}
 
 		return args
+	end
+
+	def resolve_exceptions(exceptions)
+		# TODO
+		[]
 	end
 
 	def resolve_scopes(scopes)
