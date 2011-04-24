@@ -36,7 +36,7 @@ class #{@name}
 				#{format_initial_value("this.#{f.name}", f)}
 			<?rb } ?>
 		}
-		<?rb end ?>
+	<?rb end ?>
 
 	<?rb @message.new_fields.each {|f| ?>
 	public void set#{f.name.capitalize}(#{format_type(f.type)} #{f.name}) {
