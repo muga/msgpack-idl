@@ -187,7 +187,11 @@ class ParsletTransform < Parslet::Transform
 	}
 
 	rule(:include => simple(:n)) {
-		AST::Include.new(n.to_s)
+		if n.is_a?(AST::StringLiteral)
+			AST::Include.new(n.value)
+		else
+			AST::Include.new(n.to_s)
+		end
 	}
 
 

@@ -87,7 +87,7 @@ class Evaluator
 		@types = {}  # name:String => AST::Type
 		@generic_types = []  # Template
 
-		@global_namespace = [""]   # Namespace
+		@global_namespace = IR::Namespace.new([])
 		@lang_namespace = {}     # lang:String => scope:Namespace
 
 		@service_versions = {} # serviceName:String => (IR::Service, [(IR::ServiceVersion, AST::ServiceVersion)])

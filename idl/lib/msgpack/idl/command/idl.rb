@@ -70,6 +70,7 @@ conf = {
 	:out => nil,
 	:show_ast => nil,
 	:show_ir => nil,
+	:search_paths => [],
 }
 
 op.on('--example', 'show IDL examples') {
@@ -104,6 +105,10 @@ op.on('-g', '--lang LANG', 'output language') {|s|
 
 op.on('-o', '--output DIR', 'output directory (default: ./gen-LANG)') {|s|
 	conf[:out] = s
+}
+
+op.on('-I PATH', 'add include path') {|s|
+	conf[:search_paths] << s
 }
 
 op.on('--show-ast', 'show AST for debugging') {
@@ -250,7 +255,11 @@ when :generate
 	end
 
 	begin
-		parser = MessagePack::IDL::Parser.new
+		search_paths = conf[:search_paths].map {|path|
+			File.expand_path(path)
+		}
+
+		parser = MessagePack::IDL::Parser.new(search_paths)
 		files.each {|path|
 			if path == "-"
 				text = STDIN.read
@@ -281,6 +290,10 @@ when :generate
 		gen = MessagePack::IDL::Generator.new
 		gen.generate(lang, ir, out)
 
+	rescue MessagePack::IDL::IncludeError => error
+		puts error.to_s
+		puts ""
+		exit 1
 	rescue MessagePack::IDL::SyntaxError => error
 		puts error.to_s
 		puts ""

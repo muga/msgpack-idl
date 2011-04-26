@@ -59,6 +59,7 @@ class Parser
 	def parse_include(inc, dir, fname)
 		if dir
 			search_paths = @search_paths + [File.expand_path(dir)]
+			search_paths.uniq!
 		else
 			search_paths = @search_paths
 		end
@@ -68,14 +69,14 @@ class Parser
 				return parse_file(real_path)
 			end
 		}
-		raise IncludeError, format_include_error(inc, fname)
+		raise_include_error(inc, File.join(dir,fname), search_paths)
 	end
 
-	def format_include_error(inc, fname)
-		[
-			"#{fname}:",
-			"  Can't include file #{inc}"
-		].join("\n")
+	def raise_include_error(inc, path, search_paths)
+		raise IncludeError, %[Can't find #{inc.dump} included from #{path}
+
+search path:
+#{search_paths.map {|s| "  #{s}" }.join("\n")}]
 	end
 end
 

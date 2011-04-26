@@ -330,7 +330,8 @@ class ParsletParser < Parslet::Parser
 
 	rule(:path) {
 		# TODO path
-		space? >> match('[a-zA-Z0-9_\-\.\ ]').repeat(1).as(:path) >> boundary
+		space? >> match('[a-zA-Z0-9_\-\.\ ]').repeat(1).as(:path) >> boundary |
+		literal_str
 	}
 
 	rule(:lang_name) {
