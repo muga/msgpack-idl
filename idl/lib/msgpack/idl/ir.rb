@@ -115,6 +115,11 @@ module IR
 		def map_type?
 			@generic_type == Primitive.map
 		end
+
+		def ==(o)
+			o.is_a?(ParameterizedType) && @generic_type == o.generic_type &&
+				@type_params == o.type_params
+		end
 	end
 
 	class TypeParameterSymbol
@@ -137,6 +142,11 @@ module IR
 
 		def map_type?
 			false
+		end
+
+		def ==(o)
+			o.is_a?(GenericType) && @name == o.name &&
+				@type_params.size == o.type_params.size
 		end
 	end
 

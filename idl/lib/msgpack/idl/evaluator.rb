@@ -87,7 +87,7 @@ class Evaluator
 		@types = {}  # name:String => AST::Type
 		@generic_types = []  # Template
 
-		@global_namespace = ""   # Namespace
+		@global_namespace = [""]   # Namespace
 		@lang_namespace = {}     # lang:String => scope:Namespace
 
 		@service_versions = {} # serviceName:String => (IR::Service, [(IR::ServiceVersion, AST::ServiceVersion)])
@@ -200,9 +200,9 @@ class Evaluator
 
 								if f.is_a?(InheritMarkWithCheck)
 									if inherit_func.args != f.func.args ||
-										inherit_func.return_type != f.func.return_type ||
-										inherit_func.exceptions != f.func.exceptions
-										raise InheritanceError, "Function signature mismatched with #{s.name}:#{inherit_version}.#{f.name}"
+											inherit_func.return_type != f.func.return_type ||
+											inherit_func.exceptions != f.func.exceptions
+										raise InheritanceError, "Function signature is mismatched with #{s.name}:#{inherit_version}.#{f.name}"
 									end
 								end
 
