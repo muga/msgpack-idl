@@ -5,11 +5,11 @@
 
 Gem::Specification.new do |s|
   s.name = %q{msgpack-idl}
-  s.version = "0.1.0"
+  s.version = "0.1.1"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["FURUHASHI Sadayuki"]
-  s.date = %q{2011-04-23}
+  s.date = %q{2011-04-26}
   s.default_executable = %q{msgpack-idl}
   s.email = %q{frsyuki@users.sourceforge.jp}
   s.executables = ["msgpack-idl"]
@@ -20,6 +20,9 @@ Gem::Specification.new do |s|
      "lib/msgpack/idl/ast.rb",
      "lib/msgpack/idl/command/example.rb",
      "lib/msgpack/idl/command/idl.rb",
+     "lib/msgpack/idl/command/vimcolor.rb",
+     "lib/msgpack/idl/command/vimcolor/mark.vim",
+     "lib/msgpack/idl/command/vimcolor/msgspec.vim",
      "lib/msgpack/idl/error.rb",
      "lib/msgpack/idl/evaluator.rb",
      "lib/msgpack/idl/generator.rb",
