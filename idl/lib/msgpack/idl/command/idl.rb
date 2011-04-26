@@ -126,9 +126,20 @@ when :example
 
 	def show_available_examples
 		puts "available examples:"
+		name_max = Example.list.max {|name,_,_| name.length }[0].length
 		Example.list.each {|name,summary,code|
-			puts "  #{name}#{" "*(10-name.length)}: #{summary}"
+			puts "  #{name}#{" "*(name_max+2-name.length)}: #{summary}"
 		}
+	end
+
+	def try_color_print(code)
+		require 'msgpack/idl/command/vimcolor'
+		syntax = File.join(
+				File.expand_path(File.dirname(__FILE__)), 'vimcolor', 'msgspec.vim')
+		vc = VimColor.new('vim', nil, nil, [":filetype off", ":source #{syntax}"])
+		puts vc.run(code, 'msgspec', :ansi)
+	rescue
+		puts code
 	end
 
 	if ARGV.length == 0
@@ -141,12 +152,18 @@ when :example
 
 	name = ARGV[0]
 	begin
-		Example.show(name)
+		code = Example.get(name)
 	rescue
 		show_available_examples
 		puts ""
 		puts "error: unknown example name: #{name.dump}"
 		exit 1
+	end
+
+	if STDOUT.tty?
+		try_color_print(code)
+	else
+		puts code
 	end
 
 when :update

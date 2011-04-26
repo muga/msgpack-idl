@@ -22,16 +22,16 @@ module Example
 		LIST
 	end
 
-	def self.show(name)
+	def self.get(name)
 		n, summary, code = LIST.find {|n, summary, code|
 			name == n
 		}
 		unless code
 			raise "unknown example name: #{name}"
 		end
-		puts "# #{name} - #{summary} example"
-		puts code
-		nil
+		result = "# #{name} - #{summary} example\n"
+		result << code
+		result
 	end
 
 	def self.add(name, summary, code)
@@ -128,6 +128,66 @@ enum Sites {
 message LogInLog {
     1: UserInfo user
     2: Sites site
+}
+EOF
+
+	add 'service', 'simple rpc', <<EOF
+exception DiskError {
+    1: string message
+}
+
+service PropertyStoreService {
+    raw? get(1: raw key)
+    void set(1: raw key, 2: raw value) throws DiskError
+}
+EOF
+
+	add 'version', 'versioned rpc', <<EOF
+exception DiskError {
+    1: string message
+}
+
+service PropertyStoreService:0 {
+    void set(1: raw key, 2: raw value)
+    raw? get(1: raw key)
+}
+
+service PropertyStoreService:1 {
+    void set(1: raw key, 2: raw value) throws DiskError
+
+    # inherit former version's function
+    inherit get
+}
+
+service PropertyStoreService:2 {
+    void set(1: raw key, 2: raw value, 3: int flags) throws DiskError
+
+    # type-checked inheritance
+    inherit raw? get(1: raw key)
+
+    int? getFlags(1: raw key)
+}
+
+service PropertyStoreService:3 {
+    # inherit all functions
+    inherit *
+}
+EOF
+
+	add 'application', 'multi-namespace rpc', <<EOF
+service KeyValueService:0 {
+    void set(1: raw key, 2: raw value)
+    raw? get(1: raw key)
+}
+
+service CacheService:0 {
+    void set(1: raw key, 2: raw value, 3: long expire)
+    raw? get(1: raw key)
+}
+
+application MyApp {
+    KeyValueService:0 kv default
+    CacheService:0 cache
 }
 EOF
 
