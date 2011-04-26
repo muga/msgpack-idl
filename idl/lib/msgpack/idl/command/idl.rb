@@ -224,6 +224,7 @@ when :generate
 	rescue LoadError
 		available = false
 	end
+
 	if !available || !MessagePack::IDL::Generator.available?(lang)
 		puts "Language module #{lang.dump} is not available."
 		puts "Try to install it as follows:"
@@ -231,35 +232,47 @@ when :generate
 		exit 1
 	end
 
-	parser = MessagePack::IDL::Parser.new
-	files.each {|path|
-		if path == "-"
-			text = STDIN.read
-			parser.parse(text, '(stdin)', '.')
-		else
-			parser.parse_file(path)
+	begin
+		parser = MessagePack::IDL::Parser.new
+		files.each {|path|
+			if path == "-"
+				text = STDIN.read
+				parser.parse(text, '(stdin)', '.')
+			else
+				parser.parse_file(path)
+			end
+		}
+		ast = parser.ast
+
+		if conf[:show_ast]
+			require 'pp'
+			$stderr.puts "AST:"
+			$stderr.puts ast.pretty_inspect
 		end
-	}
-	ast = parser.ast
 
-	if conf[:show_ast]
-		require 'pp'
-		$stderr.puts "AST:"
-		$stderr.puts ast.pretty_inspect
+		ev = MessagePack::IDL::Evaluator.new
+		ev.evaluate(ast)
+		ev.evaluate_inheritance
+		ir = ev.evaluate_spec(lang)
+
+		if conf[:show_ir]
+			require 'pp'
+			$stderr.puts "IR:"
+			$stderr.puts ir.pretty_inspect
+		end
+
+		gen = MessagePack::IDL::Generator.new
+		gen.generate(lang, ir, out)
+
+	rescue MessagePack::IDL::SyntaxError => error
+		puts error.to_s
+		puts ""
+		exit 1
+	rescue MessagePack::IDL::SemanticsError => error
+		puts error.to_s
+		puts ""
+		exit 1
 	end
 
-	ev = MessagePack::IDL::Evaluator.new
-	ev.evaluate(ast)
-	ev.evaluate_inheritance
-	ir = ev.evaluate_spec(lang)
-
-	if conf[:show_ir]
-		require 'pp'
-		$stderr.puts "IR:"
-		$stderr.puts ir.pretty_inspect
-	end
-
-	gen = MessagePack::IDL::Generator.new
-	gen.generate(lang, ir, out)
 end
 

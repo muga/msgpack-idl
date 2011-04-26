@@ -20,7 +20,21 @@ module IDL
 
 
 module AST
+	SUMMARY_LINES = 6
+
 	class Element
+		alias text to_s
+
+		def summary
+			t = text
+			lines = t.split("\n")
+			return t if lines.size <= SUMMARY_LINES
+			if lines.last == "}"
+				(lines[0,SUMMARY_LINES-2] + ["    ...", "}"]).join("\n")
+			else
+				(lines[0,SUMMARY_LINES-1] + ["    ..."]).join("\n")
+			end
+		end
 	end
 
 	class Document < Array
@@ -31,6 +45,10 @@ module AST
 			@path = path
 		end
 		attr_reader :path
+
+		def text
+			"include #{@path}"
+		end
 	end
 
 
@@ -40,6 +58,14 @@ module AST
 			@lang = lang
 		end
 		attr_reader :scopes, :lang
+
+		def text
+			if @lang
+				"namespace #{@lang} #{@scopes.join('.')}"
+			else
+				"namespace #{@scopes.join('.')}"
+			end
+		end
 	end
 
 
@@ -50,6 +76,15 @@ module AST
 			@fields = fields
 		end
 		attr_reader :name, :super_class, :fields
+
+		def text
+			t = "message #{@name}"
+			t << " < #{@super_class.text}" if @super_class
+			t << " {\n"
+			t << @fields.map {|f| "    #{f.text}\n" }.join
+			t << "}"
+			t
+		end
 	end
 
 
@@ -65,6 +100,14 @@ module AST
 			@modifier = modifier
 		end
 		attr_reader :id, :type, :name, :modifier
+
+		def text
+			if @modifier == FIELD_OPTIONAL
+				"#{@id}: optional #{@type.text} #{@name}"
+			else
+				"#{@id}: #{@type.text} #{@name}"
+			end
+		end
 	end
 
 	class ValueAssignedField < Field
@@ -73,6 +116,10 @@ module AST
 			@value = value
 		end
 		attr_reader :value
+
+		def text
+			"#{super} = #{@value.text}"
+		end
 	end
 
 
@@ -82,6 +129,13 @@ module AST
 			@fields = fields
 		end
 		attr_reader :name, :fields
+
+		def text
+			t = "enum #{@name} {\n"
+			t << @fields.map {|f| "    #{f.text}\n" }.join
+			t << "}"
+			t
+		end
 	end
 
 	class EnumField < Element
@@ -90,6 +144,10 @@ module AST
 			@name = name
 		end
 		attr_reader :id, :name
+
+		def text
+			"#{@id}: #{@name}"
+		end
 	end
 
 
@@ -100,12 +158,24 @@ module AST
 			@functions = functions
 		end
 		attr_reader :name, :version, :functions
+
+		def text
+			t = "service #{@name}"
+			t << ":#{@version}" if @version
+			t << " {\n"
+			t << @functions.map {|f| "    #{f.text}\n" }.join
+			t << "}"
+			t
+		end
 	end
 
 	class Inherit < Element
 	end
 
 	class InheritAll < Inherit
+		def text
+			"inherit *"
+		end
 	end
 
 	class InheritName < Inherit
@@ -113,6 +183,10 @@ module AST
 			@name = name
 		end
 		attr_reader :name
+
+		def text
+			"inherit #{@name}"
+		end
 	end
 
 	class InheritFunc < Inherit
@@ -123,6 +197,12 @@ module AST
 			@exceptions = exceptions
 		end
 		attr_reader :name, :return_type, :args, :exceptions
+
+		def text
+			t = "inherit #{@return_type.text} #{@name}(#{@args.map {|a| a.text }.join(', ') })"
+			t << " throws #{@exceptions.map {|ex| ex.text }.join(', ')}" if @exceptions && !@exceptions.empty?
+			t
+		end
 	end
 
 	class Func < Element
@@ -133,6 +213,12 @@ module AST
 			@exceptions = exceptions
 		end
 		attr_reader :name, :return_type, :args, :exceptions
+
+		def text
+			t = "#{@return_type.text} #{@name}(#{@args.map {|a| a.text }.join(', ')})"
+			t << " throws #{@exceptions.map {|ex| ex.text }.join(', ')}" if @exceptions && !@exceptions.empty?
+			t
+		end
 	end
 
 
@@ -144,6 +230,13 @@ module AST
 
 		attr_reader :name
 		attr_reader :scopes
+
+		def text
+			t = "application #{@name} {\n"
+			t << @scopes.map {|sc| "    #{sc.text}\n" }.join
+			t << "}"
+			t
+		end
 	end
 
 	class Scope < Element
@@ -158,6 +251,12 @@ module AST
 		def default?
 			@default
 		end
+
+		def text
+			t = "#{@service}:#{@version} #{@name}"
+			t << " default" if @default
+			t
+		end
 	end
 
 
@@ -171,6 +270,14 @@ module AST
 		def nullable?
 			@nullable
 		end
+
+		def text
+			if @nullable
+				"#{@name}?"
+			else
+				"#{@name}"
+			end
+		end
 	end
 
 	class GenericType < Type
@@ -179,6 +286,10 @@ module AST
 			@type_params = type_params
 		end
 		attr_reader :type_params
+
+		def text
+			"#{super}<#{@type_params.map {|tp| tp.text }.join(',')}>"
+		end
 	end
 
 	FIELD_OPTIONAL = :optional
@@ -193,6 +304,10 @@ module AST
 			@name = name
 		end
 		attr_reader :name
+
+		def text
+			"#{@name}"
+		end
 	end
 
 	class EnumLiteral < Literal
@@ -201,6 +316,10 @@ module AST
 			@field = field
 		end
 		attr_reader :name, :field
+
+		def text
+			"#{@name}.#{@field}"
+		end
 	end
 
 	class IntLiteral < Literal
@@ -208,6 +327,10 @@ module AST
 			@value = value
 		end
 		attr_reader :value
+
+		def text
+			"#{@value}"
+		end
 	end
 
 	class FlaotLiteral < Literal
@@ -215,9 +338,16 @@ module AST
 			@value = value
 		end
 		attr_reader :value
+
+		def text
+			"#{@value}"
+		end
 	end
 
 	class NilLiteral < Literal
+		def text
+			%[nil]
+		end
 	end
 
 	class BoolLiteral < Literal
@@ -225,6 +355,10 @@ module AST
 			@value = value
 		end
 		attr_reader :value
+
+		def text
+			"#{@value}"
+		end
 	end
 
 	class TrueLiteral < BoolLiteral
@@ -242,6 +376,10 @@ module AST
 	class StringLiteral < Literal
 		def initialize(value)
 			@value = value
+		end
+
+		def text
+			@value.dump
 		end
 	end
 

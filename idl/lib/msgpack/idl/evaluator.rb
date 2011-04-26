@@ -56,26 +56,30 @@ class Evaluator
 	end
 
 	class InheritAllMark
+		def initialize(ast)
+			@ast = ast
+		end
+		attr_reader :ast
 		def name
 			""
 		end
 	end
 
 	class InheritMark
-		def initialize(name)
+		def initialize(ast, name)
+			@ast = ast
 			@name = name
 		end
-		attr_reader :name
+		attr_reader :ast, :name
 	end
 
 	class InheritMarkWithCheck < InheritMark
-		def initialize(func)
-			super(func.name)
+		def initialize(ast, func)
+			super(ast, func.name)
 			@func = func
 		end
 		attr_reader :func
 	end
-
 
 	def initialize
 		@names = {}  # name:String => AST::Element
@@ -86,7 +90,7 @@ class Evaluator
 		@global_namespace = ""   # Namespace
 		@lang_namespace = {}     # lang:String => scope:Namespace
 
-		@services = []  # name:String => IR::Service
+		@service_versions = {} # serviceName:String => (IR::Service, [(IR::ServiceVersion, AST::ServiceVersion)])
 
 		init_built_in
 
@@ -111,7 +115,7 @@ class Evaluator
 			if e.super_class
 				super_message = resolve_type(e.super_class)
 				if !super_message.is_a?(IR::Exception)
-					raise InvalidNameError, "`#{e.super_class}' is not a #{IR::Exception} but a #{super_message.class}"
+					raise InvalidNameError, "Super class of the exception `#{e.super_class}' must be an exception"
 				end
 			end
 			new_fields = resolve_fields(e.fields, super_message)
@@ -122,7 +126,7 @@ class Evaluator
 			if e.super_class
 				super_message = resolve_type(e.super_class)
 				if !super_message.is_a?(IR::Message)
-					raise InvalidNameError, "`#{e.super_class}' is not a #{IR::Message} but a #{super_message.class}"
+					raise InvalidNameError, "Super class of the message `#{e.super_class}' must be a message"
 				end
 			end
 			new_fields = resolve_fields(e.fields, super_message)
@@ -135,9 +139,9 @@ class Evaluator
 
 		when AST::Service
 			v = e.version || 0
-			s = check_service_version(e.name, v)
+			check_service_version(e.name, v)
 			funcs = resolve_service_partial(e.functions)
-			add_service_version(s, e.name, v, funcs)
+			add_service_version(e, e.name, v, funcs)
 
 		when AST::Application
 			check_name(e.name, e)
@@ -145,76 +149,93 @@ class Evaluator
 			add_application(e.name, scopes)
 
 		else
-			raise SemanticsError, "Unknown toplevel AST element `#{e.class}': #{e.inspect}"
+			raise SemanticsError, "Unknown toplevel AST element `#{e.class}'"
 		end
+
+	rescue => error
+		raise_error(error, e)
 	end
 
 	def evaluate_inheritance
-		@services.each {|s|
-			s.versions = s.versions.sort_by {|sv| sv.version }
+		@ir_services = @service_versions.values.map {|s,versions|
+			versions = versions.sort_by {|sv,ast| sv.version }
 
 			super_versions = []
-			s.versions.each do |sv|
-
-				real_functions = []
-				sv.functions.each {|f|
-					case f
-					when InheritAllMark
-						if super_versions.empty?
-							raise InheritanceError, "inherit all on the oldest version is invalid: #{s.name}:#{sv.version}"
-						end
-						last = super_versions.last
-						last.functions.each {|ifunc|
-							real_functions << IR::InheritedFunction.new(last.version, ifunc)
-						}
-
-					when InheritMark
-						if super_versions.empty?
-							raise InheritanceError, "inherit all on the oldest version is invalid: #{s.name}:#{sv.version}"
-						end
-						inherit_func = nil
-						inherit_version = nil
-						super_versions.reverse_each do |ssv|
-							inherit_func = ssv.functions.find {|ifunc| f.name == ifunc.name }
-							if inherit_func
-								inherit_version = ssv.version
-								break
+			versions.each do |sv,ast|
+				begin
+					real_functions = []
+					sv.functions.each {|f|
+						case f
+						when InheritAllMark
+							begin
+								if super_versions.empty?
+									raise InheritanceError, "Inherit on the oldest version is invalid"
+								end
+								last = super_versions.last
+								last.functions.each {|ifunc|
+									real_functions << IR::InheritedFunction.new(last.version, ifunc)
+								}
+							rescue => error
+								raise_error(error, f.ast)
 							end
-						end
 
-						unless inherit_func
-							raise InheritanceError, "no such function at service `#{s.name}': #{f.name}"
-						end
+						when InheritMark
+							begin
+								if super_versions.empty?
+									raise InheritanceError, "Inherit on the oldest version is invalid"
+								end
+								inherit_func = nil
+								inherit_version = nil
+								super_versions.reverse_each do |ssv|
+									inherit_func = ssv.functions.find {|ifunc| f.name == ifunc.name }
+									if inherit_func
+										inherit_version = ssv.version
+										break
+									end
+								end
 
-						if f.is_a?(InheritMarkWithCheck)
-							if inherit_func.args != f.func.args ||
-									inherit_func.return_type != f.func.return_type ||
-									inherit_func.exceptions != f.func.exceptions
-								raise InheritanceError, "signature not matched at service `#{s.name}': #{f.name}"
+								unless inherit_func
+									raise InheritanceError, "No such function: #{f.name}"
+								end
+
+								if f.is_a?(InheritMarkWithCheck)
+									if inherit_func.args != f.func.args ||
+										inherit_func.return_type != f.func.return_type ||
+										inherit_func.exceptions != f.func.exceptions
+										raise InheritanceError, "Function signature mismatched with #{s.name}:#{inherit_version}.#{f.name}"
+									end
+								end
+
+								real_functions << IR::InheritedFunction.new(inherit_version, inherit_func)
+							rescue => error
+								raise_error(error, f.ast)
 							end
+
+						when IR::Function
+							real_functions << f
+
+						else
+							raise "Unknown partially evaluated function: #{f.inspect}"
 						end
+					}
 
-						real_functions << IR::InheritedFunction.new(inherit_version, inherit_func)
-
-					when IR::Function
-						real_functions << f
-
-					else
-						raise "unknown partially evaluated function: #{f.inspect}"
+					if real_functions.uniq!
+						# may be caused by InheritAllMark
+						# FIXME show warning?
 					end
-				}
 
-				if real_functions.uniq!
-					# may be caused by InheritAllMark
-					# FIXME show warning?
+					sv.functions = real_functions
+
+					super_versions << sv
+				rescue => error
+					raise_error(error, ast)
 				end
-
-				sv.functions = real_functions
-
-				super_versions << sv
 			end
+			s.versions = super_versions
+
+			s
 		}
-		@ir_services = @services
+
 		self
 	end
 
@@ -228,6 +249,22 @@ class Evaluator
 	end
 
 	private
+	def raise_error(error, ast = nil)
+		if ast
+			msg = %[#{error.message}
+
+while processing:
+#{ast.summary.split("\n").map {|l| "  #{l}" }.join("\n")}]
+
+		else
+			msg = error.message
+		end
+
+		wrap = error.class.new(msg)
+		wrap.set_backtrace(error.backtrace)
+		raise wrap
+	end
+
 	def spec_namespace(lang)
 		if ns = @lang_namespace[lang]
 			return ns
@@ -250,7 +287,7 @@ class Evaluator
 
 	def check_name(name, e)
 		if ee = @names[name]
-			raise DuplicatedNameError, "duplicated name `#{name}': #{e.inspect}"
+			raise DuplicatedNameError, "Duplicated name `#{name}'"
 		end
 		@names[name] = e
 	end
@@ -259,7 +296,7 @@ class Evaluator
 	def resolve_simple_type(e)
 		type = @types[e.name]
 		unless type
-			raise NameNotFoundError, "type not found: #{e.name}"
+			raise NameNotFoundError, "Type not found `#{e.name}'"
 		end
 		if e.nullable? && !type.is_a?(IR::NullableType)
 			IR::NullableType.new(type)
@@ -281,7 +318,7 @@ class Evaluator
 			end
 		}
 		unless resolved_types
-			raise NameNotFoundError, "generic type not matched: #{e.name}"
+			raise NameNotFoundError, "Generic type not matched `#{e.name}'"
 		end
 		type = IR::ParameterizedType.new(resolved_types, template.generic_type)
 		if template.nullable || e.nullable?
@@ -313,42 +350,46 @@ class Evaluator
 		end
 
 		new_fields = fields.map {|e|
-			if e.id == 0
-				raise InvalidNameError, "field id 0 is invalid"
-			end
-			if e.id < 0
-				raise InvalidNameError, "field id < 0 is invalid"
-			end
-			if n = used_ids[e.id]
-				raise DuplicatedNameError, "duplicated field id #{e.id}: #{n}, #{e.name}"
-			end
-			if used_names[e.name]
-				raise DuplicatedNameError, "duplicated field name: #{e.name}"
-			end
-			if super_used_ids[e.id]
-				raise InheritanceError, "field id is duplicated with super class: #{e.is}"
-			end
-			if super_used_names[e.name]
-				raise InheritanceError, "field name is duplicated with super class: #{e.name}"
-			end
+			begin
+				if e.id == 0
+					raise InvalidNameError, "Field id 0 is invalid"
+				end
+				if e.id < 0
+					raise InvalidNameError, "Field id < 0 is invalid"
+				end
+				if n = used_ids[e.id]
+					raise DuplicatedNameError, "Field id #{e.id} is duplicated with field `#{n}'"
+				end
+				if i = used_names[e.name]
+					raise DuplicatedNameError, "Field name `#{e.name}' is duplicated with id #{i}"
+				end
+				if super_used_ids[e.id]
+					raise InheritanceError, "Field id #{e.id} is duplicated with super class `#{e.name}'"
+				end
+				if super_used_names[e.name]
+					raise InheritanceError, "Field name is duplicated with super class `#{e.name}'"
+				end
 
-			used_ids[e.id] = e.name
-			used_names[e.name] = e.name
+				used_ids[e.id] = e.name
+				used_names[e.name] = e.id
 
-			type = resolve_type(e.type)
-			if e.modifier == AST::FIELD_OPTIONAL
-				option  = IR::FIELD_OPTIONAL
-			else
-				option  = IR::FIELD_REQUIRED
+				type = resolve_type(e.type)
+				if e.modifier == AST::FIELD_OPTIONAL
+					option  = IR::FIELD_OPTIONAL
+				else
+					option  = IR::FIELD_REQUIRED
+				end
+
+				if e.is_a?(AST::ValueAssignedField)
+					v = resolve_initial_value(type, e.value)
+				else
+					v = resolve_implicit_value(type)
+				end
+
+				IR::Field.new(e.id, type, e.name, option, v)
+			rescue => error
+				raise_error(error, e)
 			end
-
-			if e.is_a?(AST::ValueAssignedField)
-				v = resolve_initial_value(type, e.value)
-			else
-				v = resolve_implicit_value(type)
-			end
-
-			IR::Field.new(e.id, type, e.name, option, v)
 		}.sort_by {|f|
 			f.id
 		}
@@ -391,21 +432,21 @@ class Evaluator
 		when AST::EnumLiteral
 			enum = resolve_type(e.name)
 			if !enum.is_a?(IR::Enum)
-				raise NameNotFoundError, "not a enum type: #{e.name}"
+				raise NameNotFoundError, "Not a enum type `#{e.name}'"
 			end
 			f = enum.fields.find {|f|
 				f.name == e.field
 			}
 			if !f
-				raise NameNotFoundError, "no such field in enum `#{e.name}': #{e.field}"
+				raise NameNotFoundError, "No such field at enum `#{e.name}': #{e.field}"
 			end
 			IR::EnumValue.new(enum, f)
 
 		when AST::ConstLiteral
-			raise NameNotFoundError, "unknown constant: #{name}"
+			raise NameNotFoundError, "Unknown constant `#{name}'"
 
 		else
-			raise SemanticsError, "Unknown literal type: #{e.class}"
+			raise SemanticsError, "unknown literal type: #{e.class}"
 		end
 
 		check_assignable(type, v)
@@ -414,24 +455,24 @@ class Evaluator
 
 	def check_assignable(type, v)
 		if type.nullable_type? && v != IR::NilValue.nil
-			raise TypeError, "not-nullable value for nullable type is not allowed"
+			raise TypeError, "Non-null value for nullable type is not allowed"
 		end
 
 		case v
 		when IR::NilValue
 			unless type.nullable_type?
-				raise TypeError, "nullable is expected: #{type}"
+				raise TypeError, "Assigning null to non-nullable field"
 			end
 
 		when IR::IntValue
 			unless IR::Primitive::INT_TYPES.include?(type)
-				raise TypeError, "integer type is expected: #{type}"
+				raise TypeError, "Integer type is expected: #{type}"
 			end
 			# TODO overflow
 
 		when IR::BoolValue
 			if type != IR::Primitive::bool
-				raise TypeError, "bool type is expected: #{type}"
+				raise TypeError, "Bool type is expected: #{type}"
 			end
 
 		end
@@ -450,7 +491,7 @@ class Evaluator
 
 		elsif t.is_a?(IR::Enum)
 			if t.fields.empty?
-				raise TypeError, "empty enum: #{t.name}"
+				raise TypeError, "Empty enum is not allowed: enum #{t.name}"
 			end
 			IR::EnumValue.new(t, t.fields.first)
 
@@ -464,20 +505,24 @@ class Evaluator
 		used_names = {}
 
 		fields = fields.map {|e|
-			if e.id < 0
-				raise InvalidNameError, "enum id < 0 is invalid"
-			end
-			if n = used_ids[e.id]
-				raise DuplicatedNameError, "duplicated enum id #{e.id}: #{n}, #{e.name}"
-			end
-			if used_names[e.name]
-				raise DuplicatedNameError, "duplicated field name: #{e.name}"
-			end
+			begin
+				if e.id < 0
+					raise InvalidNameError, "Enum id < 0 is invalid"
+				end
+				if n = used_ids[e.id]
+					raise DuplicatedNameError, "Enum field id #{e.id} is duplicated with `#{n}'"
+				end
+				if i = used_names[e.name]
+					raise DuplicatedNameError, "Enum field name `#{e.name}' is duplicated with id #{i}"
+				end
 
-			used_ids[e.id] = e.name
-			used_names[e.name] = e.name
+				used_ids[e.id] = e.name
+				used_names[e.name] = e.id
 
-			IR::EnumField.new(e.id, e.name)
+				IR::EnumField.new(e.id, e.name)
+			rescue => error
+				raise_error(error, e)
+			end
 		}.sort_by {|f|
 			f.id
 		}
@@ -486,19 +531,17 @@ class Evaluator
 	end
 
 	def check_service_version(name, version)
-		s = @services.find {|s|
-			s.name == name
-		}
+		s, versions = @service_versions[name]
 		if s
-			s.versions.each {|sv|
+			versions.each {|sv,ast|
 				if sv.version == version
-					raise DuplicatedNameError, "duplicated version #{version}"
+					raise DuplicatedNameError, "Duplicated version #{version}"
 				end
 			}
 		else
 			check_name(name, nil)
 		end
-		s
+		nil
 	end
 
 	def resolve_service_partial(funcs)
@@ -507,24 +550,24 @@ class Evaluator
 		funcs = funcs.map {|e|
 			case e
 			when AST::InheritAll
-				InheritAllMark.new
+				InheritAllMark.new(e)
 
 			when AST::InheritName, AST::InheritFunc
 				if used_names[e.name]
-					raise DuplicatedNameError, "duplicated function name: #{e.name}"
+					raise DuplicatedNameError, "Duplicated function name `#{e.name}'"
 				end
 				used_names[e.name] = true
 
 				if e.is_a?(AST::InheritFunc)
 					func = resolve_func(e)
-					InheritMarkWithCheck.new(func)
+					InheritMarkWithCheck.new(e, func)
 				else
-					InheritMark.new(e.name)
+					InheritMark.new(e, e.name)
 				end
 
 			when AST::Func
 				if used_names[e.name]
-					raise DuplicatedNameError, "duplicated function name: #{e.name}"
+					raise DuplicatedNameError, "Duplicated function name `#{e.name}'"
 				end
 				used_names[e.name] = true
 
@@ -553,6 +596,9 @@ class Evaluator
 		exceptions = resolve_exceptions(e.exceptions)
 
 		IR::Function.new(e.name, return_type, args, exceptions)
+
+	rescue => error
+		raise_error(error, e)
 	end
 
 	def resolve_args(args)
@@ -560,36 +606,40 @@ class Evaluator
 		used_names = {}
 
 		args = args.map {|e|
-			if e.id == 0
-				raise InvalidNameError, "argument id 0 is invalid"
-			end
-			if e.id < 0
-				raise InvalidNameError, "argument id < 0 is invalid"
-			end
-			if n = used_ids[e.id]
-				raise DuplicatedNameError, "duplicated argument id #{e.id}: #{n}, #{e.name}"
-			end
-			if used_names[e.name]
-				raise DuplicatedNameError, "duplicated argument name: #{e.name}"
-			end
+			begin
+				if e.id == 0
+					raise InvalidNameError, "Argument id 0 is invalid"
+				end
+				if e.id < 0
+					raise InvalidNameError, "Argument id < 0 is invalid"
+				end
+				if n = used_ids[e.id]
+					raise DuplicatedNameError, "Argument id #{e.id} is duplicated with `#{n}'"
+				end
+				if i = used_names[e.name]
+					raise DuplicatedNameError, "Argument name `#{e.name}' is duplicated with id #{i}"
+				end
 
-			used_ids[e.id] = e.name
-			used_names[e.name] = e.name
+				used_ids[e.id] = e.name
+				used_names[e.name] = e.id
 
-			type = resolve_type(e.type)
-			if e.modifier == AST::FIELD_OPTIONAL
-				option  = IR::FIELD_OPTIONAL
-			else
-				option  = IR::FIELD_REQUIRED
+				type = resolve_type(e.type)
+				if e.modifier == AST::FIELD_OPTIONAL
+					option  = IR::FIELD_OPTIONAL
+				else
+					option  = IR::FIELD_REQUIRED
+				end
+
+				if e.is_a?(AST::ValueAssignedField)
+					v = resolve_initial_value(type, e.value)
+				else
+					v = resolve_implicit_value(type)
+				end
+
+				IR::Argument.new(e.id, type, e.name, option, v)
+			rescue => error
+				raise_error(error, e)
 			end
-
-			if e.is_a?(AST::ValueAssignedField)
-				v = resolve_initial_value(type, e.value)
-			else
-				v = resolve_implicit_value(type)
-			end
-
-			IR::Argument.new(e.id, type, e.name, option, v)
 		}.sort_by {|a|
 			a.id
 		}
@@ -607,7 +657,7 @@ class Evaluator
 			e.default?
 		}
 		if ds.size > 1
-			raise DuplicatedNameError, "multiple default scope: #{ds.map {|e| e.name}.join(', ')}"
+			raise DuplicatedNameError, "Multiple default scope: #{ds.map {|e| e.name}.join(', ')}"
 		end
 
 		if	ds.empty?
@@ -620,21 +670,17 @@ class Evaluator
 
 		scopes = scopes.map {|e|
 			if used_names[e.name]
-				raise DuplicatedNameError, "duplicated scope name: #{e.name}"
+				raise DuplicatedNameError, "Duplicated scope name: #{e.name}"
 			end
 
-			s = @services.find {|s|
-				s.name == e.service
-			}
+			s, versions = @service_versions[e.service]
 			unless s
-				raise NameNotFoundError, "no such service: #{e.name}"
+				raise NameNotFoundError, "No such service: #{e.name}"
 			end
 
-			sv = s.versions.find {|sv|
-				sv.version == e.version
-			}
+			sv = versions.find {|sv,ast| sv.version == e.version }
 			unless sv
-				raise NameNotFoundError, "no such service version: #{e.service}:#{s.version}"
+				raise NameNotFoundError, "No such service version: #{e.service}:#{s.version}"
 			end
 
 			used_names[e.name] = true
@@ -677,14 +723,15 @@ class Evaluator
 		e
 	end
 
-	def add_service_version(s, name, version, funcs)
+	def add_service_version(e, name, version, funcs)
 		sv = IR::ServiceVersion.new(version, funcs)
-		if s
-			s.versions << sv
-		else
-			s = IR::Service.new(name, [sv])
-			@services << s
+		s, versions = @service_versions[name]
+		unless s
+			s = IR::Service.new(name, nil)
+			versions = []
+			@service_versions[name] = [s, versions]
 		end
+		versions << [sv, e]
 		sv
 	end
 

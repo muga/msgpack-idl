@@ -49,7 +49,7 @@ end
 class TypeError < SemanticsError
 end
 
-class InheritanceError < IDLError
+class InheritanceError < SemanticsError
 end
 
 class GeneratorError < IDLError

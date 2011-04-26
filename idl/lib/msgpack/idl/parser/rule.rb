@@ -507,8 +507,6 @@ class ParsletParser < Parslet::Parser
 			out.puts ln
 		}
 
-		out.puts ""
-
 		out
 	end
 end
