@@ -13,7 +13,6 @@ import org.msgpack.MessagePackObject;
 import org.msgpack.MessagePackable;
 import org.msgpack.MessageUnpackable;
 import org.msgpack.MessageConvertable;
-import org.msgpack.rpc.error.RemoteError;
 
 public #{format_message(@message, @message.name)}
 
