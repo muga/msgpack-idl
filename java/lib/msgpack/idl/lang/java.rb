@@ -176,7 +176,7 @@ class JavaGenerator < GeneratorModule
 		if t.super_class
 			ctx.super_class = t.super_class.name
 		elsif t.is_a?(IR::Exception)
-			ctx.super_class = "RemoteError"
+			ctx.super_class = "org.msgpack.rpc.error.RemoteError"
 		end
 		ctx.name = name
 		render('message_body.java', ctx)
