@@ -466,8 +466,13 @@ class ParsletParser < Parslet::Parser
 			line, *after = source.read(AFTER_BUFFER).to_s.split("\n")
 			after = after[0,AFTER_LINES]
 
-			source.pos = last_cause.pos - col - BEFORE_BUFFER
-			before = source.read(BEFORE_BUFFER).to_s.split("\n")
+		if last_cause.pos + col < BEFORE_BUFFER
+			before_size = last_cause.pos - col
+		else
+			before_size = BEFORE_BUFFER
+		end
+			source.pos = last_cause.pos - col - before_size
+			before = source.read(before_size).to_s.split("\n")
 			before = before[-BEFORE_LINES,BEFORE_LINES] || []
 		ensure
 			source.pos = old_pos
